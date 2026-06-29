@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teka-teki Kotak Warna</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4efe6;
+    --ink: #1a1a1a;
+    --accent: #ff5722;
+    --paper: #fbf7ee;
+    --shadow: rgba(26, 26, 26, 0.15);
+    --c1: #e63946;
+    --c2: #f4a261;
+    --c3: #2a9d8f;
+    --c4: #264653;
+    --c5: #e9c46a;
+    --c6: #9d4edd;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(255, 87, 34, 0.06), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(42, 157, 143, 0.08), transparent 40%);
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(0.5rem, 2vw, 1.25rem) clamp(0.5rem, 2vw, 1rem);
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.15;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    width: 100%;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: clamp(0.5rem, 2vw, 1.25rem);
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  h1 {
+    font-size: clamp(1.4rem, 4.5vw, 3rem);
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+    margin-bottom: 0.3rem;
+  }
+
+  h1 .swap { color: var(--accent); }
+
+  .sub {
+    font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+    opacity: 0.7;
+    max-width: 380px;
+    margin: 0 auto;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+    padding: clamp(0.4rem, 1.2vw, 0.75rem) clamp(0.6rem, 1.5vw, 1.25rem);
+    margin: clamp(0.5rem, 1.5vw, 1rem) 0;
+    box-shadow: 4px 4px 0 var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(0.65rem, 1.6vw, 0.8rem);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .stat span:last-child {
+    font-weight: 600;
+    color: var(--accent);
+    font-size: clamp(0.8rem, 1.8vw, 1rem);
+  }
+
+  .boards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(0.6rem, 1.5vw, 1.25rem);
+    margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
+  }
+
+  .board-card {
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+    padding: clamp(0.5rem, 1.2vw, 1rem);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .board-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(0.55rem, 1.4vw, 0.7rem);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: clamp(0.4rem, 1vw, 0.75rem);
+    text-align: center;
+    opacity: 0.6;
+  }
+
+  .grid {
+    display: grid;
+    gap: 4px;
+    aspect-ratio: 1;
+  }
+
+  .cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s;
+    cursor: pointer;
+    position: relative;
+    border: 1.5px solid rgba(26, 26, 26, 0.4);
+    touch-action: manipulation;
+  }
+
+  .target .cell { cursor: default; }
+
+  .play.locked .cell:hover {
+    transform: none;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .play:not(.locked) .cell:hover {
+    transform: scale(1.08);
+    z-index: 2;
+    box-shadow: 0 0 0 2px var(--ink);
+  }
+
+  .cell.selected {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px var(--paper);
+    z-index: 3;
+  }
+
+  .cell.hint-source {
+    box-shadow: 0 0 0 3px #fbbc04, 0 0 0 5px var(--paper);
+    animation: hintPulse 0.6s ease infinite;
+    z-index: 4;
+  }
+  .cell.hint-target {
+    box-shadow: 0 0 0 3px #4285f4, 0 0 0 5px var(--paper);
+    animation: hintPulse 0.6s ease infinite 0.3s;
+    z-index: 4;
+  }
+
+  @keyframes hintPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+
+  .cell.match::after {
+    content: '✓';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.85);
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: 1.2rem;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    animation: matchFade 0.4s ease;
+  }
+
+  @keyframes matchFade {
+    from { opacity: 0; transform: scale(0.5); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .controls {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(0.65rem, 1.6vw, 0.75rem);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: clamp(0.45rem, 1.2vw, 0.75rem) clamp(0.7rem, 2vw, 1.5rem);
+    background: var(--paper);
+    color: var(--ink);
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 3px 3px 0 var(--ink);
+    transition: all 0.1s ease;
+    font-weight: 600;
+  }
+
+  button:hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+
+  button:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--ink);
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  button.primary {
+    background: var(--accent);
+    color: var(--paper);
+  }
+
+  .level-pick {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .level-pick button {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.7rem;
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+
+  .level-pick button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 2rem 3rem;
+    border-radius: 4px;
+    text-align: center;
+    box-shadow: 8px 8px 0 var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 100;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .toast h2 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .toast p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.8;
+    line-height: 1.6;
+  }
+
+  .toast .best {
+    color: #fbbc04;
+    font-weight: 700;
+    margin-top: 0.4rem;
+  }
+
+  .hint {
+    text-align: center;
+    font-size: clamp(0.7rem, 1.6vw, 0.85rem);
+    opacity: 0.6;
+    margin-top: clamp(0.4rem, 1vw, 0.75rem);
+    margin-bottom: clamp(0.4rem, 1vw, 0.75rem);
+    font-style: italic;
+    min-height: 1.5em;
+  }
+
+  .hint.active {
+    opacity: 1;
+    color: var(--accent);
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  /* Lock state */
+  .play.locked .cell {
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 500px) {
+    .boards { grid-template-columns: 1fr; }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: stretch;
+      gap: 0.3rem 0.6rem;
+    }
+    .stat { display: flex; justify-content: space-between; }
+  }
+  /* Very short screens: compact even more */
+  @media (max-height: 800px) {
+    header { margin-bottom: 0.4rem; }
+    .eyebrow { display: none; }
+    .sub { display: none; }
+    .stats { margin: 0.4rem 0; padding: 0.45rem 0.8rem; }
+    .board-card { padding: 0.4rem; }
+    .board-label { margin-bottom: 0.3rem; }
+    .hint { margin: 0.4rem 0; }
+    .level-pick { margin-bottom: 0.4rem; }
+  }
+  @media (max-height: 640px) {
+    h1 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+    body { padding: 0.5rem; }
+  }
+</style>
+</head>
+<body>
+  <a href="../index.html" style="position:fixed;top:0.5rem;left:0.5rem;color:inherit;text-decoration:none;font-size:0.78rem;opacity:0.75;background:rgba(0,0,0,0.4);padding:4px 9px;border-radius:6px;z-index:9999;font-family:Poppins,sans-serif">← Kembali</a>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Puzzle № 01 — Indonesian Edition</div>
+    <h1>Teka-teki <span class="swap">Kotak</span> Warna</h1>
+    <p class="sub">Susun papan kiri agar sama persis dengan pola target di kanan. Tukar dua kotak dengan mengkliknya bergantian.</p>
+  </header>
+
+  <div class="level-pick" id="levels">
+    <button data-level="3" class="active">Mudah · 3×3</button>
+    <button data-level="4">Sedang · 4×4</button>
+    <button data-level="5">Sulit · 5×5</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span>Langkah</span> <span id="moves">0</span></div>
+    <div class="stat"><span>Waktu</span> <span id="time">0:00</span></div>
+    <div class="stat"><span>Min Langkah</span> <span id="minMoves">—</span></div>
+    <div class="stat"><span>Rekor</span> <span id="best">—</span></div>
+    <div class="stat"><span>Menang</span> <span id="wins">0</span></div>
+    <div class="stat" title="Koin — dapatkan dari menang"><span>🪙 Koin</span> <span id="coins">0</span></div>
+  </div>
+
+  <div class="boards">
+    <div class="board-card">
+      <div class="board-label">Papanmu</div>
+      <div class="grid play" id="play"></div>
+    </div>
+    <div class="board-card">
+      <div class="board-label">Target</div>
+      <div class="grid target" id="target"></div>
+    </div>
+  </div>
+
+  <p class="hint" id="hintText">Klik kotak pertama, lalu kotak kedua untuk menukar posisi.</p>
+
+  <div class="controls">
+    <button id="undo">↶ Undo (Z)</button>
+    <button id="shuffle">Acak Ulang</button>
+    <button id="solve" class="primary">Beri Petunjuk</button>
+    <button id="themeBtn" title="Ganti tema warna">🎨 Tema</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" aria-live="polite">
+  <h2 id="toastTitle">Selamat!</h2>
+  <p id="toastMsg">Kamu memecahkan teka-teki</p>
+</div>
+
+<!-- Theme picker modal -->
+<div id="themeModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.65);display:none;align-items:center;justify-content:center;z-index:200;padding:1rem;backdrop-filter:blur(4px)">
+  <div style="background:var(--paper);border:2px solid var(--ink);border-radius:8px;max-width:680px;width:100%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:8px 8px 0 var(--ink)">
+    <div style="padding:1rem 1rem 0.5rem;border-bottom:1px solid rgba(0,0,0,0.1);display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+      <h3 style="font-family:'Fraunces',serif;font-style:italic;font-size:1.3rem;margin:0;flex:1;color:var(--ink)">🎨 Pilih Tema</h3>
+      <input id="themeSearch" type="text" placeholder="Cari nama/kategori..." style="padding:0.45rem 0.7rem;font-family:'JetBrains Mono',monospace;font-size:0.75rem;border:2px solid var(--ink);border-radius:4px;background:var(--bg);width:160px">
+      <button id="themeModalCloseBtn" style="padding:0.45rem 0.9rem;font-family:'JetBrains Mono',monospace;font-size:0.7rem;text-transform:uppercase;background:var(--ink);color:var(--paper);border:none;border-radius:4px;cursor:pointer;font-weight:700">Tutup</button>
+    </div>
+    <div id="themeGrid" style="overflow-y:auto;padding:0.75rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.6rem;flex:1;background:var(--bg)"></div>
+    <div style="padding:0.55rem 1rem;font-size:0.7rem;opacity:0.6;text-align:center;border-top:1px solid rgba(0,0,0,0.1);background:var(--paper);color:var(--ink)" id="themeCount"></div>
+  </div>
+</div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  const STORAGE_KEY = 'colorpuzzle_v2';
+  // 100 hand-curated palettes — pick via theme picker modal.
+  const THEMES = [
+    // ===== Alam (Nature) =====
+    { name: 'Warna Lembut',    cat: 'Klasik', colors: ['#e63946','#f4a261','#2a9d8f','#264653','#e9c46a','#9d4edd'] },
+    { name: 'Pastel',          cat: 'Klasik', colors: ['#ffadad','#ffd6a5','#fdffb6','#caffbf','#9bf6ff','#bdb2ff'] },
+    { name: 'Permata Laut',    cat: 'Klasik', colors: ['#03045e','#0077b6','#00b4d8','#90e0ef','#caf0f8','#023e8a'] },
+    { name: 'Hutan',           cat: 'Alam',   colors: ['#2d5016','#3a6324','#4a8033','#618c4a','#7fa663','#a5c47c'] },
+    { name: 'Laut Dalam',      cat: 'Alam',   colors: ['#03045e','#023e8a','#0077b6','#0096c7','#00b4d8','#48cae4'] },
+    { name: 'Gurun',           cat: 'Alam',   colors: ['#6b3e00','#8b5a1f','#c08552','#dca878','#e6c9a0','#f0deb6'] },
+    { name: 'Salju',           cat: 'Alam',   colors: ['#1a2a3a','#4e7bb0','#6293bf','#9dbeda','#bcd4e6','#dbe9f4'] },
+    { name: 'Gunung',          cat: 'Alam',   colors: ['#3d3431','#5e524c','#85746a','#a89484','#c9b39e','#e0cebc'] },
+    { name: 'Pantai',          cat: 'Alam',   colors: ['#003049','#669bbc','#fdf0d5','#ffd166','#ef476f','#06d6a0'] },
+    { name: 'Bunga',           cat: 'Alam',   colors: ['#ff006e','#fb5607','#ffbe0b','#8338ec','#3a86ff','#ff85a1'] },
+    { name: 'Daun',            cat: 'Alam',   colors: ['#1b4332','#2d6a4f','#40916c','#52b788','#74c69d','#95d5b2'] },
+    { name: 'Hujan',           cat: 'Alam',   colors: ['#1a1a2e','#16213e','#0f3460','#534b62','#7a7f9a','#a4b0bf'] },
+    { name: 'Pelangi',         cat: 'Alam',   colors: ['#e63946','#f4a261','#e9c46a','#2a9d8f','#1d3557','#7b2cbf'] },
+    { name: 'Air Terjun',      cat: 'Alam',   colors: ['#013a63','#01497c','#014f86','#2c7da0','#61a5c2','#a9d6e5'] },
+    { name: 'Padang Rumput',   cat: 'Alam',   colors: ['#386641','#6a994e','#a7c957','#f2e8cf','#bc4749','#ddb892'] },
+    { name: 'Hutan Bambu',     cat: 'Alam',   colors: ['#283618','#606c38','#dda15e','#bc6c25','#fefae0','#a98467'] },
+    { name: 'Karang',          cat: 'Alam',   colors: ['#ff6b6b','#ff8e72','#feca57','#48dbfb','#1dd1a1','#5f27cd'] },
+    { name: 'Sakura',          cat: 'Alam',   colors: ['#ffd6e0','#ffafcc','#ff85a1','#bde0fe','#a2d2ff','#ffc8dd'] },
+    { name: 'Lavender Field',  cat: 'Alam',   colors: ['#b298dc','#9d7ec9','#7b5fab','#f5e6e8','#e2c2ff','#d4b8f5'] },
+    { name: 'Bunga Matahari',  cat: 'Alam',   colors: ['#ffd60a','#ffc300','#fb8500','#e76f51','#264653','#8b5a2b'] },
+
+    // ===== Waktu / Langit =====
+    { name: 'Pagi',            cat: 'Waktu',  colors: ['#fff3b0','#ffd6a5','#ffadad','#a0c4ff','#bdb2ff','#ffc6ff'] },
+    { name: 'Siang Cerah',     cat: 'Waktu',  colors: ['#e7f5ff','#a5d8ff','#74c0fc','#4dabf7','#339af0','#1c7ed6'] },
+    { name: 'Sore Merah',      cat: 'Waktu',  colors: ['#370617','#6a040f','#9d0208','#d00000','#dc2f02','#e85d04'] },
+    { name: 'Senja',           cat: 'Waktu',  colors: ['#22223b','#4a4e69','#9a8c98','#c9ada7','#f2e9e4','#ee7752'] },
+    { name: 'Malam Bintang',   cat: 'Waktu',  colors: ['#0d1b2a','#1b263b','#415a77','#778da9','#e0e1dd','#ffd60a'] },
+    { name: 'Subuh',           cat: 'Waktu',  colors: ['#2b2d42','#8d99ae','#edf2f4','#ef233c','#d90429','#ffafcc'] },
+    { name: 'Fajar Emas',      cat: 'Waktu',  colors: ['#ffba08','#faa307','#f48c06','#e85d04','#dc2f02','#9d0208'] },
+    { name: 'Mendung',         cat: 'Waktu',  colors: ['#212529','#495057','#6c757d','#adb5bd','#ced4da','#dee2e6'] },
+    { name: 'Badai',           cat: 'Waktu',  colors: ['#000000','#14213d','#fca311','#e5e5e5','#ffffff','#dc2f02'] },
+    { name: 'Langit Ungu',     cat: 'Waktu',  colors: ['#10002b','#240046','#3c096c','#5a189a','#7b2cbf','#9d4edd'] },
+
+    // ===== Antariksa =====
+    { name: 'Galaxy',          cat: 'Antariksa', colors: ['#03071e','#370617','#6a040f','#9d0208','#5a189a','#7b2cbf'] },
+    { name: 'Aurora',          cat: 'Antariksa', colors: ['#011627','#41ead4','#fdfffc','#b91372','#f71735','#7400b8'] },
+    { name: 'Nebula Merah',    cat: 'Antariksa', colors: ['#240046','#5a189a','#9d4edd','#c77dff','#e0aaff','#ff006e'] },
+    { name: 'Mars',            cat: 'Antariksa', colors: ['#3c0a0a','#641e1e','#8b3a3a','#b85c5c','#e07a5f','#f4a261'] },
+    { name: 'Venus',           cat: 'Antariksa', colors: ['#7f5539','#9c6644','#b08968','#ddb892','#e6ccb2','#ede0d4'] },
+    { name: 'Bulan',           cat: 'Antariksa', colors: ['#1a1a2e','#3a3a5a','#5c5c7c','#8a8a9c','#b6b6c1','#dcdce0'] },
+    { name: 'Saturnus',        cat: 'Antariksa', colors: ['#42321a','#704d24','#ad7d3c','#cca16f','#e5c8a0','#f0dec5'] },
+    { name: 'Jupiter',         cat: 'Antariksa', colors: ['#3e2723','#5d4037','#8d6e63','#a1887f','#bcaaa4','#d7ccc8'] },
+    { name: 'Cosmic Pink',     cat: 'Antariksa', colors: ['#1a0b2e','#4e0d3a','#900048','#ff006e','#ff5c8a','#ffc6ff'] },
+    { name: 'Milky Way',       cat: 'Antariksa', colors: ['#0b132b','#1c2541','#3a506b','#5bc0be','#6fffe9','#ffd6ff'] },
+    { name: 'Black Hole',      cat: 'Antariksa', colors: ['#000000','#1a0b3a','#3a0b5b','#7400b8','#c77dff','#ffd60a'] },
+    { name: 'Pluto',           cat: 'Antariksa', colors: ['#22223b','#4a4e69','#9a8c98','#c9ada7','#dad7cd','#a3b18a'] },
+    { name: 'Komet',           cat: 'Antariksa', colors: ['#000814','#001d3d','#003566','#ffc300','#ffd60a','#ffea00'] },
+
+    // ===== Tech / Retro =====
+    { name: 'Neon',            cat: 'Retro',  colors: ['#ff10f0','#39ff14','#00f0ff','#ffea00','#ff5e00','#ff007f'] },
+    { name: '8-bit Klasik',    cat: 'Retro',  colors: ['#000000','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff'] },
+    { name: 'Vaporwave',       cat: 'Retro',  colors: ['#ff71ce','#01cdfe','#05ffa1','#b967ff','#fffb96','#ff9ff3'] },
+    { name: 'Synthwave',       cat: 'Retro',  colors: ['#2b0a3d','#5e2a6c','#c84b8c','#ff6c8b','#ff9e64','#feca57'] },
+    { name: 'Cyberpunk',       cat: 'Retro',  colors: ['#0a0e27','#fcee0c','#ff003c','#00fff0','#ff00a0','#00ff9f'] },
+    { name: 'Matrix',          cat: 'Retro',  colors: ['#000000','#002200','#005500','#00aa00','#00ff41','#ccffcc'] },
+    { name: 'Retro 70s',       cat: 'Retro',  colors: ['#cd7f32','#daa520','#d2691e','#bc8f8f','#8b4513','#a0522d'] },
+    { name: 'Retro 80s',       cat: 'Retro',  colors: ['#ff006e','#fb5607','#ffbe0b','#8338ec','#3a86ff','#06ffa5'] },
+    { name: 'Retro 90s',       cat: 'Retro',  colors: ['#264653','#2a9d8f','#e9c46a','#f4a261','#e76f51','#a8dadc'] },
+    { name: 'Pixel Art',       cat: 'Retro',  colors: ['#172038','#253a5e','#3c5e8b','#4f8fba','#73bed3','#a4dddb'] },
+    { name: 'Glitch',          cat: 'Retro',  colors: ['#000000','#ff00ff','#00ffff','#ffff00','#ff0000','#ffffff'] },
+    { name: 'Hologram',        cat: 'Retro',  colors: ['#a0c4ff','#bdb2ff','#ffc6ff','#ffadad','#caffbf','#9bf6ff'] },
+    { name: 'Disco',           cat: 'Retro',  colors: ['#ffd700','#c0c0c0','#ff1493','#9370db','#00bfff','#32cd32'] },
+    { name: 'Game Boy',        cat: 'Retro',  colors: ['#0f380f','#306230','#8bac0f','#9bbc0f','#c4cfa1','#e0f8d0'] },
+    { name: 'CRT TV',          cat: 'Retro',  colors: ['#1d1d1d','#3a3a3a','#5a5a5a','#7a7a7a','#a3a3a3','#c5c5c5'] },
+
+    // ===== Buah / Makanan =====
+    { name: 'Stroberi',        cat: 'Makanan', colors: ['#590d22','#800f2f','#a4133c','#c9184a','#ff4d6d','#ff8fa3'] },
+    { name: 'Jeruk',           cat: 'Makanan', colors: ['#5e2a02','#a04a02','#d2691e','#ff7f00','#ffa500','#ffd380'] },
+    { name: 'Anggur',          cat: 'Makanan', colors: ['#240046','#3c096c','#5a189a','#7b2cbf','#9d4edd','#c77dff'] },
+    { name: 'Mangga',          cat: 'Makanan', colors: ['#ffba08','#f48c06','#dc7f02','#bc6c25','#7a5230','#3a2c1a'] },
+    { name: 'Apel Hijau',      cat: 'Makanan', colors: ['#386641','#52796f','#84a98c','#cad2c5','#bcb04f','#7c6c00'] },
+    { name: 'Pisang',          cat: 'Makanan', colors: ['#ffe66d','#ffd166','#f9c74f','#f8961e','#f3722c','#43291f'] },
+    { name: 'Semangka',        cat: 'Makanan', colors: ['#1f4a23','#2e7d32','#a4d76a','#ff5722','#d32f2f','#000000'] },
+    { name: 'Cokelat',         cat: 'Makanan', colors: ['#3e1f0e','#5a2d0c','#7e3f1d','#a8623a','#cb8a5d','#e6b69b'] },
+    { name: 'Permen',          cat: 'Makanan', colors: ['#ff6f91','#ff9671','#ffc75f','#f9f871','#d6a2e8','#a0e7e5'] },
+    { name: 'Es Krim',         cat: 'Makanan', colors: ['#fde2e4','#fad2e1','#e2ece9','#bee1e6','#dfe7fd','#cddafd'] },
+    { name: 'Kopi',            cat: 'Makanan', colors: ['#1b1109','#3c2415','#5d3a1f','#7e5a36','#a78562','#d2b48c'] },
+    { name: 'Matcha',          cat: 'Makanan', colors: ['#2b3d2c','#4a6741','#80a07b','#b6c98b','#d8e1aa','#f1f4c8'] },
+
+    // ===== Material / Permata =====
+    { name: 'Emas',            cat: 'Permata', colors: ['#3e2c0a','#7d5a14','#bb8a2b','#daa520','#ffd700','#fff4b3'] },
+    { name: 'Perak',           cat: 'Permata', colors: ['#3a3a3a','#5e5e5e','#8a8a8a','#b0b0b0','#d4d4d4','#f5f5f5'] },
+    { name: 'Tembaga',         cat: 'Permata', colors: ['#3d1a06','#6e2d0e','#a04318','#cd6b2c','#d98e64','#e9b793'] },
+    { name: 'Mutiara',         cat: 'Permata', colors: ['#f0e9e0','#e2d6c9','#c9b8a8','#b09b89','#9a7d6a','#e5dcd0'] },
+    { name: 'Berlian',         cat: 'Permata', colors: ['#e6f7ff','#bae7ff','#91d5ff','#69c0ff','#40a9ff','#1890ff'] },
+    { name: 'Zamrud',          cat: 'Permata', colors: ['#003820','#016233','#02844a','#10ad6a','#52b788','#a9eccb'] },
+    { name: 'Safir',           cat: 'Permata', colors: ['#00073d','#012a4a','#013a63','#01497c','#2c7da0','#61a5c2'] },
+    { name: 'Rubi',            cat: 'Permata', colors: ['#2b0509','#600612','#9e0e1f','#cb1828','#e63946','#f48c8f'] },
+    { name: 'Ametis',          cat: 'Permata', colors: ['#240046','#3c096c','#5a189a','#7b2cbf','#9d4edd','#e0aaff'] },
+    { name: 'Opal',            cat: 'Permata', colors: ['#e8a3d6','#a3d8e8','#d8e8a3','#e8d3a3','#a3a3e8','#e8c6e2'] },
+
+    // ===== Indonesia =====
+    { name: 'Bali Sunset',     cat: 'Indonesia', colors: ['#0d1b2a','#bc4749','#f4a261','#ffba08','#f4d35e','#2a9d8f'] },
+    { name: 'Bromo',           cat: 'Indonesia', colors: ['#2c1810','#4a2d1c','#7a3e1f','#bc6c25','#e08e45','#f9c74f'] },
+    { name: 'Raja Ampat',      cat: 'Indonesia', colors: ['#014f86','#2c7da0','#61a5c2','#89c2d9','#a9d6e5','#90e0ef'] },
+    { name: 'Borobudur',       cat: 'Indonesia', colors: ['#3d2818','#5a3925','#7f553a','#a07e58','#c4a87c','#e0c9a0'] },
+    { name: 'Komodo',          cat: 'Indonesia', colors: ['#2d3f00','#4a6020','#728448','#a4b370','#cdd7a0','#e8e8c0'] },
+    { name: 'Toba',            cat: 'Indonesia', colors: ['#0b3954','#087e8b','#bfd7ea','#ff5a5f','#c81d25','#562c2c'] },
+    { name: 'Wakatobi',        cat: 'Indonesia', colors: ['#003e5c','#0078a8','#42a5d8','#a8d8e8','#fceead','#ffa07a'] },
+    { name: 'Krakatau',        cat: 'Indonesia', colors: ['#1a0a0a','#4a1c1c','#8b2c1e','#c9483a','#f48c5a','#fcd5b4'] },
+    { name: 'Papua',           cat: 'Indonesia', colors: ['#1b4332','#2d6a4f','#52b788','#ffba08','#e85d04','#9d0208'] },
+    { name: 'Toraja',          cat: 'Indonesia', colors: ['#2b0a02','#5a1810','#9c3a1c','#c66b3e','#d1a374','#ebd3aa'] },
+
+    // ===== Hewan =====
+    { name: 'Burung Beo',      cat: 'Hewan',  colors: ['#2e8b57','#ffd700','#ff4500','#1e90ff','#9370db','#dc143c'] },
+    { name: 'Macan Tutul',     cat: 'Hewan',  colors: ['#3a2410','#5e3a1a','#8b5a2b','#c8a165','#e8d4a8','#1a0f06'] },
+    { name: 'Ikan Koi',        cat: 'Hewan',  colors: ['#f5f5f5','#ff6b35','#bc4a3c','#3a3a3a','#e0c897','#1a1a1a'] },
+    { name: 'Kupu-kupu',       cat: 'Hewan',  colors: ['#003049','#d62828','#f77f00','#fcbf49','#eae2b7','#7b2cbf'] },
+    { name: 'Flamingo',        cat: 'Hewan',  colors: ['#ff8fab','#ffb3c6','#ffc2d4','#fde2e4','#dc2f55','#9d0208'] },
+    { name: 'Ikan Tropis',     cat: 'Hewan',  colors: ['#ffd60a','#ff9100','#06d6a0','#118ab2','#073b4c','#ef476f'] },
+
+    // ===== Musim =====
+    { name: 'Musim Semi',      cat: 'Musim',  colors: ['#bee3db','#faf9f9','#ffd6ba','#fec5bb','#fcd5ce','#f8edeb'] },
+    { name: 'Musim Panas',     cat: 'Musim',  colors: ['#ffd60a','#f48c06','#06d6a0','#118ab2','#ef476f','#ffffff'] },
+    { name: 'Musim Gugur',     cat: 'Musim',  colors: ['#582f0e','#7f4f24','#936639','#a68a64','#b6ad90','#c2c5aa'] },
+    { name: 'Musim Dingin',    cat: 'Musim',  colors: ['#2b2d42','#8d99ae','#edf2f4','#fff','#a4b4c4','#dde8f0'] },
+    { name: 'Tropis',          cat: 'Musim',  colors: ['#06d6a0','#118ab2','#ffd60a','#ef476f','#073b4c','#ff6b35'] },
+
+    // ===== Khusus / Lain =====
+    { name: 'Pastel Mint',     cat: 'Khusus', colors: ['#caffbf','#a0e7e5','#b5ead7','#c7ceea','#dfecf5','#fcf5c7'] },
+    { name: 'Monokrom',        cat: 'Khusus', colors: ['#000000','#2b2b2b','#5a5a5a','#8a8a8a','#bababa','#ffffff'] },
+    { name: 'Sepia',           cat: 'Khusus', colors: ['#3e2c1a','#5d4221','#7a5832','#a87c4a','#c9a575','#e8d5b7'] },
+    { name: 'Bumi',            cat: 'Khusus', colors: ['#582f0e','#7f4f24','#936639','#a68a64','#9c6644','#b08968'] },
+    { name: 'Jewel Tones',     cat: 'Khusus', colors: ['#9d0208','#6a040f','#10002b','#2d00f7','#03c4a1','#ffc300'] },
+    { name: 'Tulip Belanda',   cat: 'Khusus', colors: ['#ff006e','#fb5607','#ffbe0b','#fff','#3a86ff','#8338ec'] },
+    { name: 'Koi Pond',        cat: 'Khusus', colors: ['#003e1f','#2d6a4f','#74c69d','#ff6b35','#f5f5f5','#1a1a1a'] },
+    { name: 'Hot Air Balloon', cat: 'Khusus', colors: ['#e63946','#f1faee','#a8dadc','#457b9d','#1d3557','#ffba08'] },
+    { name: 'Coral Reef',      cat: 'Khusus', colors: ['#ff595e','#ffca3a','#8ac926','#1982c4','#6a4c93','#fbb13c'] }
+  ];
+  let currentTheme = 0;
+  let colors = THEMES[0].colors.slice();
+  let coins = 0;
+  // Theme index 0 is always unlocked (default Warna Lembut, free)
+  let unlockedThemes = [0];
+
+  // Cost formula: theme idx 0 is free; idx>=1 follows doubling 100, 200, 400, ...
+  function themeCost(idx) {
+    if (idx === 0) return 0;
+    return 100 * Math.pow(2, idx - 1);
+  }
+  // Format big numbers with K/M/B/T/Q suffixes; fall back to scientific for crazy big
+  function formatCoins(n) {
+    if (n < 1000) return String(n);
+    const units = [
+      { v: 1e3, s: 'K' }, { v: 1e6, s: 'M' }, { v: 1e9, s: 'B' },
+      { v: 1e12, s: 'T' }, { v: 1e15, s: 'Q' }, { v: 1e18, s: 'Qi' }
+    ];
+    for (let i = units.length - 1; i >= 0; i--) {
+      if (n >= units[i].v) {
+        const val = n / units[i].v;
+        return (val >= 100 ? val.toFixed(0) : val >= 10 ? val.toFixed(1) : val.toFixed(2)) + units[i].s;
+      }
+    }
+    return n.toExponential(1);
+  }
+  function isThemeUnlocked(idx) { return unlockedThemes.includes(idx); }
+  function updateCoinDisplay() {
+    const el = document.getElementById('coins');
+    if (el) {
+      el.textContent = formatCoins(coins);
+      el.title = coins + ' koin';
+    }
+    // If theme modal is open, refresh it so lock/unlock status updates
+    const modal = document.getElementById('themeModal');
+    if (modal && modal.style.display === 'flex') {
+      const search = document.getElementById('themeSearch');
+      renderThemeGrid(search ? search.value : '');
+    }
+    // Also refresh the picker's coin header
+    const coinHdr = document.getElementById('themeCoinHeader');
+    if (coinHdr) coinHdr.textContent = '🪙 ' + formatCoins(coins);
+  }
+
+  // ============= STATE =============
+  let size = 3;
+  let target = [];
+  let current = [];
+  let selected = null;
+  let moves = 0;
+  let minMoves = 0; // theoretical minimum number of swaps from start
+  let minMovesExact = true; // whether minMoves is exact (true) or estimate (false)
+  let wins = 0;
+  let startTime = null;
+  let timerInterval = null;
+  let won = false;
+  let history = []; // for undo
+  let hintTimerId = null;
+  let toastTimerId = null;
+  let isHinting = false;
+
+  // Per-level records
+  let bestTimes = { 3: null, 4: null, 5: null }; // seconds
+  let bestMoves = { 3: null, 4: null, 5: null };
+
+  // ============= DOM =============
+  const playEl = document.getElementById('play');
+  const targetEl = document.getElementById('target');
+  const movesEl = document.getElementById('moves');
+  const timeEl = document.getElementById('time');
+  const minMovesEl = document.getElementById('minMoves');
+  const bestEl = document.getElementById('best');
+  const winsEl = document.getElementById('wins');
+  const toast = document.getElementById('toast');
+  const toastTitle = document.getElementById('toastTitle');
+  const toastMsg = document.getElementById('toastMsg');
+  const hintTextEl = document.getElementById('hintText');
+  const undoBtn = document.getElementById('undo');
+  const solveBtn = document.getElementById('solve');
+  const shuffleBtn = document.getElementById('shuffle');
+
+  // ============= PERSISTENCE =============
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        wins, bestTimes, bestMoves, size, currentTheme, coins, unlockedThemes
+      }));
+    } catch(e) {}
+  }
+  function loadState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        wins = (typeof data.wins === 'number' && data.wins >= 0 && isFinite(data.wins))
+          ? Math.floor(data.wins) : 0;
+        // Validate record values: must be non-negative finite number, or null
+        const validateRec = (obj, asInt) => {
+          const result = { 3: null, 4: null, 5: null };
+          if (obj && typeof obj === 'object') {
+            for (const k of [3, 4, 5]) {
+              const v = obj[k];
+              if (typeof v === 'number' && v >= 0 && isFinite(v)) {
+                result[k] = asInt ? Math.floor(v) : v;
+              }
+            }
+          }
+          return result;
+        };
+        bestTimes = validateRec(data.bestTimes, true);  // seconds as int
+        bestMoves = validateRec(data.bestMoves, true);
+        const loadedSize = data.size;
+        size = [3, 4, 5].includes(loadedSize) ? loadedSize : 3;
+        if (typeof data.currentTheme === 'number' && data.currentTheme >= 0 && data.currentTheme < THEMES.length) {
+          currentTheme = data.currentTheme;
+          colors = THEMES[currentTheme].colors.slice();
+        }
+        // Coins (validate finite non-negative; allow any size — could be huge)
+        if (typeof data.coins === 'number' && data.coins >= 0 && isFinite(data.coins)) {
+          coins = Math.floor(data.coins);
+        }
+        // Unlocked themes: must be array of valid indices, always include 0
+        if (Array.isArray(data.unlockedThemes)) {
+          unlockedThemes = data.unlockedThemes
+            .filter(i => typeof i === 'number' && i >= 0 && i < THEMES.length)
+            .map(i => Math.floor(i));
+          if (!unlockedThemes.includes(0)) unlockedThemes.unshift(0);
+        }
+        // Defensive: if currentTheme is locked (e.g., data corruption), fall back to 0
+        if (!isThemeUnlocked(currentTheme)) {
+          currentTheme = 0;
+          colors = THEMES[0].colors.slice();
+        }
+      }
+    } catch(e) {}
+  }
+  function applyTheme(idx) {
+    if (idx < 0 || idx >= THEMES.length) return;
+    if (!isThemeUnlocked(idx)) return;  // safety: can't apply locked theme
+    // If user clicks the already-active theme, don't restart the puzzle in progress.
+    if (idx === currentTheme) {
+      setHintText(`Tema: ${THEMES[idx].name}`, true);
+      return;
+    }
+    currentTheme = idx;
+    colors = THEMES[idx].colors.slice();
+    saveState();
+    setHintText(`Tema: ${THEMES[idx].name}`, true);
+    newGame();
+  }
+
+  function purchaseTheme(idx) {
+    if (idx < 0 || idx >= THEMES.length) return false;
+    if (isThemeUnlocked(idx)) return true;  // already owned
+    const cost = themeCost(idx);
+    if (coins < cost) {
+      alert(`Koin tidak cukup. Butuh ${formatCoins(cost)} koin, kamu punya ${formatCoins(coins)}.`);
+      return false;
+    }
+    const ok = confirm(`Beli tema "${THEMES[idx].name}" seharga ${formatCoins(cost)} koin?\n\nKoin tersisa setelah beli: ${formatCoins(coins - cost)}`);
+    if (!ok) return false;
+    coins -= cost;
+    unlockedThemes.push(idx);
+    saveState();
+    updateCoinDisplay();
+    return true;
+  }
+
+  function renderThemeGrid(filter) {
+    const grid = document.getElementById('themeGrid');
+    if (!grid) return;
+    const q = (filter || '').toLowerCase().trim();
+    grid.innerHTML = '';
+    let shown = 0;
+    THEMES.forEach((t, i) => {
+      if (q && !t.name.toLowerCase().includes(q) && !(t.cat || '').toLowerCase().includes(q)) return;
+      shown++;
+      const unlocked = isThemeUnlocked(i);
+      const isActive = i === currentTheme;
+      const cost = themeCost(i);
+      const canAfford = coins >= cost;
+
+      const card = document.createElement('div');
+      const borderColor = isActive ? 'var(--accent)' : (unlocked ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.25)');
+      card.style.cssText = `background:#fff;border:2px solid ${borderColor};border-radius:6px;padding:0.5rem;cursor:pointer;transition:transform 0.1s,border-color 0.1s;position:relative;${unlocked ? '' : 'opacity:0.85'}`;
+      card.addEventListener('mouseenter', () => { card.style.transform = 'translate(-1px,-1px)'; });
+      card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+
+      // Color swatches
+      const swatches = document.createElement('div');
+      swatches.style.cssText = 'display:flex;gap:2px;height:28px;border-radius:3px;overflow:hidden;margin-bottom:0.35rem;position:relative';
+      t.colors.forEach(c => {
+        const sw = document.createElement('div');
+        sw.style.cssText = `flex:1;background:${c}`;
+        swatches.appendChild(sw);
+      });
+      // Lock overlay on swatches for locked themes
+      if (!unlocked) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;font-weight:700';
+        overlay.textContent = '🔒';
+        swatches.appendChild(overlay);
+      }
+      card.appendChild(swatches);
+
+      // Name
+      const name = document.createElement('div');
+      name.style.cssText = 'font-family:"Fraunces",serif;font-size:0.85rem;font-weight:700;color:#1a1a1a;line-height:1.1';
+      name.textContent = (isActive ? '✓ ' : '') + t.name;
+      card.appendChild(name);
+
+      // Category + cost row
+      const meta = document.createElement('div');
+      meta.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:0.2rem';
+      const cat = document.createElement('span');
+      cat.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:0.58rem;color:#888;text-transform:uppercase;letter-spacing:0.05em';
+      cat.textContent = t.cat || '';
+      meta.appendChild(cat);
+      const priceTag = document.createElement('span');
+      priceTag.style.cssText = `font-family:"JetBrains Mono",monospace;font-size:0.65rem;font-weight:700;${unlocked ? 'color:#2a9d8f' : (canAfford ? 'color:#bc6c25' : 'color:#c62828')}`;
+      if (unlocked) priceTag.textContent = i === 0 ? 'GRATIS' : '✓ Dimiliki';
+      else priceTag.textContent = '🪙 ' + formatCoins(cost);
+      meta.appendChild(priceTag);
+      card.appendChild(meta);
+
+      card.addEventListener('click', () => {
+        if (unlocked) {
+          applyTheme(i);
+          document.getElementById('themeModal').style.display = 'none';
+        } else {
+          if (purchaseTheme(i)) {
+            // After purchase, apply immediately
+            applyTheme(i);
+            document.getElementById('themeModal').style.display = 'none';
+          }
+        }
+      });
+      grid.appendChild(card);
+    });
+    const counter = document.getElementById('themeCount');
+    if (counter) {
+      const total = THEMES.length;
+      const ownedCount = unlockedThemes.length;
+      counter.textContent = q
+        ? `${shown} cocok dengan "${q}" · ${ownedCount}/${total} tema dimiliki · 🪙 ${formatCoins(coins)}`
+        : `${ownedCount}/${total} tema dimiliki · 🪙 ${formatCoins(coins)}`;
+    }
+    if (shown === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'grid-column:1/-1;text-align:center;padding:2rem;opacity:0.6;font-style:italic';
+      empty.textContent = 'Tidak ada tema cocok. Coba kata lain.';
+      grid.appendChild(empty);
+    }
+  }
+
+  function openThemeModal() {
+    renderThemeGrid('');
+    const search = document.getElementById('themeSearch');
+    if (search) search.value = '';
+    document.getElementById('themeModal').style.display = 'flex';
+    if (search) setTimeout(() => search.focus(), 100);
+  }
+
+  // ============= GENERATION =============
+  // Build target with balanced color distribution
+  function generateTarget(n) {
+    const total = n * n;
+    // Use 3 distinct colors for 3x3, 4 for 4x4, 5 for 5x5
+    const numColors = Math.min(colors.length, Math.max(3, n));
+    const palette = colors.slice(0, numColors);
+    const arr = [];
+    // Distribute as evenly as possible
+    for (let i = 0; i < total; i++) {
+      arr.push(palette[i % numColors]);
+    }
+    // Fisher-Yates shuffle the target itself so layout looks random
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Count minimum swaps using BFS for small boards. For larger boards, fall back
+  // to an estimate. Returns { count, exact }.
+  // NOTE: This is expensive — only call once per puzzle (in newGame).
+  function minSwapsToSort(cur, tgt) {
+    if (cur.every((c, i) => c === tgt[i])) return { count: 0, exact: true };
+    const n = cur.length;
+    if (n <= 9) return { count: bfsMinSwaps(cur, tgt), exact: true };
+    return { count: estimateSwaps(cur, tgt), exact: false };
+  }
+
+  // BFS minimum swaps. Limited to 9 cells (3x3) for performance.
+  function bfsMinSwaps(start, goal) {
+    const startKey = start.join('|');
+    const goalKey = goal.join('|');
+    if (startKey === goalKey) return 0;
+    const visited = new Set([startKey]);
+    let frontier = [start.slice()];
+    let depth = 0;
+    const MAX_DEPTH = 15;
+    while (frontier.length > 0 && depth < MAX_DEPTH) {
+      depth++;
+      const next = [];
+      for (const state of frontier) {
+        for (let i = 0; i < state.length; i++) {
+          for (let j = i + 1; j < state.length; j++) {
+            if (state[i] === state[j]) continue;
+            [state[i], state[j]] = [state[j], state[i]];
+            const key = state.join('|');
+            if (key === goalKey) return depth;
+            if (!visited.has(key)) {
+              visited.add(key);
+              next.push(state.slice());
+            }
+            [state[i], state[j]] = [state[j], state[i]];
+          }
+        }
+      }
+      frontier = next;
+    }
+    return depth;
+  }
+
+  // Tight upper bound estimate via greedy cycle decomposition.
+  // 1st pass: find all "double-fix" swaps (both cells become correct in 1 swap).
+  // 2nd pass: greedy resolution for remaining misplaced cells.
+  // Result is an achievable solution length — closer to true minimum than ceil(misplaced/2).
+  function estimateSwaps(cur, tgt) {
+    const n = cur.length;
+    const arr = cur.slice();
+    let swaps = 0;
+
+    // 1st pass: prefer perfect 2-for-1 swaps (fixes 2 cells per swap)
+    let foundPerfect = true;
+    while (foundPerfect) {
+      foundPerfect = false;
+      for (let i = 0; i < n; i++) {
+        if (arr[i] === tgt[i]) continue;
+        for (let j = i + 1; j < n; j++) {
+          if (arr[j] === tgt[j]) continue;
+          if (arr[i] === tgt[j] && arr[j] === tgt[i]) {
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+            swaps++;
+            foundPerfect = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // 2nd pass: resolve remaining misplaced cells one at a time
+    for (let i = 0; i < n; i++) {
+      if (arr[i] === tgt[i]) continue;
+      for (let j = i + 1; j < n; j++) {
+        if (arr[j] === tgt[i] && arr[j] !== tgt[j]) {
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+          swaps++;
+          break;
+        }
+      }
+    }
+
+    return swaps;
+  }
+
+  // Shuffle target into a starting position that's solvable in `targetSwaps` swaps.
+  function makeScrambled(tgt, targetSwaps) {
+    const arr = tgt.slice();
+    let swapCount = 0;
+    let attempts = 0;
+    const maxAttempts = targetSwaps * 20; // generous cap
+    while (swapCount < targetSwaps && attempts < maxAttempts) {
+      attempts++;
+      const i = Math.floor(Math.random() * arr.length);
+      let j = Math.floor(Math.random() * arr.length);
+      while (j === i) j = Math.floor(Math.random() * arr.length);
+      if (arr[i] === arr[j]) continue;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      swapCount++;
+    }
+    // Safety: ensure puzzle is not already solved
+    if (arr.every((c, i) => c === tgt[i])) {
+      for (let i = 0; i < arr.length - 1; i++) {
+        if (arr[i] !== arr[i + 1]) {
+          [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
+          break;
+        }
+      }
+    }
+    return arr;
+  }
+
+  // ============= RENDER =============
+  let playCellEls = [];
+  let targetCellEls = [];
+  let lastSize = 0;
+
+  function buildGrid() {
+    playEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+    targetEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+    playEl.innerHTML = '';
+    targetEl.innerHTML = '';
+    playEl.setAttribute('role', 'grid');
+    playEl.setAttribute('aria-label', `Papanmu, ${size} kali ${size}`);
+    targetEl.setAttribute('role', 'grid');
+    targetEl.setAttribute('aria-label', `Pola target, ${size} kali ${size}`);
+    playCellEls = [];
+    targetCellEls = [];
+    const total = size * size;
+    for (let i = 0; i < total; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.index = i;
+      cell.setAttribute('role', 'gridcell');
+      cell.setAttribute('tabindex', '0');
+      cell.addEventListener('click', () => handleClick(i));
+      cell.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleClick(i);
+        }
+      });
+      playEl.appendChild(cell);
+      playCellEls.push(cell);
+
+      const tcell = document.createElement('div');
+      tcell.className = 'cell';
+      tcell.setAttribute('role', 'gridcell');
+      tcell.setAttribute('aria-hidden', 'true');
+      targetEl.appendChild(tcell);
+      targetCellEls.push(tcell);
+    }
+    lastSize = size;
+  }
+
+  function render() {
+    // Rebuild grid only if size changed
+    if (lastSize !== size || playCellEls.length !== size * size) {
+      buildGrid();
+    }
+    playEl.classList.toggle('locked', won);
+
+    for (let i = 0; i < current.length; i++) {
+      const cell = playCellEls[i];
+      // Only update background if changed (avoid unnecessary repaints)
+      if (cell.dataset.color !== current[i]) {
+        cell.style.background = current[i];
+        cell.dataset.color = current[i];
+      }
+      cell.classList.toggle('selected', selected === i);
+      cell.classList.toggle('match', current[i] === target[i]);
+      // Accessibility: announce state
+      const matchStr = current[i] === target[i] ? ', sudah cocok' : '';
+      const selStr = selected === i ? ', dipilih' : '';
+      cell.setAttribute('aria-label', `Kotak ${i + 1}${matchStr}${selStr}`);
+    }
+
+    for (let i = 0; i < target.length; i++) {
+      const tcell = targetCellEls[i];
+      if (tcell.dataset.color !== target[i]) {
+        tcell.style.background = target[i];
+        tcell.dataset.color = target[i];
+      }
+    }
+
+    updateUndoBtn();
+  }
+
+  function updateUndoBtn() {
+    undoBtn.disabled = won || history.length === 0;
+    solveBtn.disabled = won;
+  }
+
+  function clearHintHighlights() {
+    for (const c of playCellEls) {
+      c.classList.remove('hint-source', 'hint-target');
+    }
+  }
+
+  function cancelHint() {
+    if (hintTimerId) { clearTimeout(hintTimerId); hintTimerId = null; }
+    clearHintHighlights();
+    isHinting = false;
+    setHintText('Klik kotak pertama, lalu kotak kedua untuk menukar posisi.', false);
+    updateUndoBtn();
+  }
+
+  function setHintText(text, active = false) {
+    hintTextEl.textContent = text;
+    hintTextEl.classList.toggle('active', active);
+  }
+
+  // ============= INTERACTION =============
+  function handleClick(i) {
+    if (won) return;
+    // Cancel any active hint or hint message on user interaction
+    if (isHinting || hintTimerId) cancelHint();
+    if (!startTime) startTimer();
+
+    if (selected === null) {
+      selected = i;
+    } else if (selected === i) {
+      selected = null;
+    } else {
+      // Save state before swap for undo
+      history.push({ a: selected, b: i });
+      [current[selected], current[i]] = [current[i], current[selected]];
+      selected = null;
+      moves++;
+      movesEl.textContent = moves;
+      // checkWin calls render() itself if win, otherwise we render below
+      if (checkWin()) return;
+      render();
+      return;
+    }
+    render();
+  }
+
+  function undo() {
+    if (won || history.length === 0) return;
+    if (isHinting || hintTimerId) cancelHint();
+    const last = history.pop();
+    [current[last.a], current[last.b]] = [current[last.b], current[last.a]];
+    // Undo reverses the swap, so decrement move counter
+    if (moves > 0) moves--;
+    movesEl.textContent = moves;
+    selected = null;
+    render();
+  }
+
+  function checkWin() {
+    if (current.every((c, i) => c === target[i])) {
+      won = true;
+      // Clear any active hint immediately so highlights/text don't linger during win toast
+      if (isHinting || hintTimerId) cancelHint();
+      wins++;
+      winsEl.textContent = wins;
+      clearInterval(timerInterval);
+
+      const elapsedSec = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+      const timeStr = formatTime(elapsedSec);
+
+      // Update records — use `moves` (net) so display matches gameplay counter.
+      // Undo can't be exploited: to win, net `moves` still needs to be >= minMoves.
+      let isNewTimeRecord = false;
+      let isNewMoveRecord = false;
+      if (bestTimes[size] === null || elapsedSec < bestTimes[size]) {
+        bestTimes[size] = elapsedSec;
+        isNewTimeRecord = true;
+      }
+      if (bestMoves[size] === null || moves < bestMoves[size]) {
+        bestMoves[size] = moves;
+        isNewMoveRecord = true;
+      }
+      // Coin reward: size² (3×3 → 9, 4×4 → 16, 5×5 → 25)
+      const coinReward = size * size;
+      coins += coinReward;
+      updateCoinDisplay();
+      saveState();
+      updateRecordDisplay();
+
+      // GameHub: notify daily challenges + achievements + cross-game coin pool
+      if (window.GameHub) {
+        const difficulty = size === 3 ? 'easy' : size === 4 ? 'medium' : 'hard';
+        window.GameHub.notify('g1_win', { difficulty, moves, timeMs: elapsedSec * 1000 });
+        window.GameHub.notify('game_start', { gameId: 1 });
+        window.GameHub.coins.add(coinReward);
+      }
+
+      // Show toast
+      // Perfect when exact-minimum is known (3x3) and net moves matches it.
+      // For 4x4/5x5, allow perfect when matching the upper-bound estimate.
+      const isPerfect = minMoves > 0 && moves <= minMoves;
+      toastTitle.textContent = isPerfect ? 'Sempurna! ⭐' : 'Selamat! 🎉';
+      let msg = `${moves} langkah · ${timeStr}`;
+      if (minMoves > 0) {
+        const minPrefix = minMovesExact ? 'min' : '~min';
+        msg += ` · ${minPrefix} ${minMoves}`;
+      }
+      msg += ` · 🪙 +${coinReward}`;
+      const records = [];
+      if (isPerfect) records.push('⭐ Solusi sempurna!');
+      if (isNewTimeRecord) records.push('⏱️ Waktu terbaik!');
+      if (isNewMoveRecord) records.push('🏆 Langkah tersedikit!');
+      toastMsg.innerHTML = '';
+      toastMsg.appendChild(document.createTextNode(msg));
+      if (records.length) {
+        const br = document.createElement('br');
+        toastMsg.appendChild(br);
+        const span = document.createElement('span');
+        span.className = 'best';
+        span.textContent = records.join(' · ');
+        toastMsg.appendChild(span);
+      }
+      toast.classList.add('show');
+
+      // Auto-advance after 2.4s
+      if (toastTimerId) clearTimeout(toastTimerId);
+      toastTimerId = setTimeout(() => {
+        toast.classList.remove('show');
+        toastTimerId = null;
+        newGame();
+      }, 2400);
+
+      // Allow dismissing toast early
+      const dismissToast = () => {
+        if (toastTimerId) {
+          clearTimeout(toastTimerId);
+          toastTimerId = null;
+          toast.classList.remove('show');
+          newGame();
+        }
+      };
+      toast.onclick = dismissToast;
+
+      render();
+      return true;
+    }
+    return false;
+  }
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function startTimerInterval() {
+    timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      timeEl.textContent = formatTime(elapsed);
+    }, 1000);
+  }
+
+  function startTimer() {
+    startTime = Date.now();
+    startTimerInterval();
+  }
+
+  // Pause timer while tab is hidden so accumulated time stays fair
+  let pauseStartTime = null;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (startTime && !won && timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        pauseStartTime = Date.now();
+      }
+    } else {
+      if (pauseStartTime !== null && !won && startTime) {
+        // Shift startTime forward by the hidden duration so display continues seamlessly
+        startTime += (Date.now() - pauseStartTime);
+        pauseStartTime = null;
+        startTimerInterval();
+      }
+    }
+  });
+
+  function updateRecordDisplay() {
+    const bt = bestTimes[size];
+    const bm = bestMoves[size];
+    if (bt !== null && bm !== null) {
+      bestEl.textContent = `${bm}× / ${formatTime(bt)}`;
+      bestEl.title = 'Klik kanan / tahan lama untuk reset rekor';
+    } else {
+      bestEl.textContent = '—';
+      bestEl.title = '';
+    }
+  }
+
+  // Right-click (desktop) or long-press (mobile) on record to reset it
+  function tryResetRecord() {
+    if (bestTimes[size] === null && bestMoves[size] === null) return;
+    if (confirm(`Hapus rekor untuk level ${size}×${size}?`)) {
+      bestTimes[size] = null;
+      bestMoves[size] = null;
+      saveState();
+      updateRecordDisplay();
+    }
+  }
+  // Long-press for mobile (touch devices)
+  let longPressTimer = null;
+  bestEl.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // Cancel pending long-press timer so we don't trigger reset twice on mobile
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    tryResetRecord();
+  });
+  bestEl.addEventListener('touchstart', (e) => {
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      tryResetRecord();
+    }, 700);
+  }, { passive: true });
+  bestEl.addEventListener('touchend', () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  });
+  bestEl.addEventListener('touchmove', () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  });
+  // Cancel timer if the OS interrupts the touch (notification, system gesture, etc.)
+  // so the reset doesn't fire unexpectedly while user thinks they cancelled.
+  bestEl.addEventListener('touchcancel', () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  });
+
+  function newGame() {
+    // Cancel all pending timers
+    if (toastTimerId) { clearTimeout(toastTimerId); toastTimerId = null; }
+    if (hintTimerId) { clearTimeout(hintTimerId); hintTimerId = null; }
+    clearInterval(timerInterval);
+    timerInterval = null;
+    pauseStartTime = null;
+    toast.classList.remove('show');
+    toast.onclick = null;
+    // Defensive: clear any leftover hint highlights
+    if (playCellEls.length) clearHintHighlights();
+
+    startTime = null;
+    timeEl.textContent = '0:00';
+    moves = 0;
+    movesEl.textContent = 0;
+    selected = null;
+    won = false;
+    history = [];
+    isHinting = false;
+
+    target = generateTarget(size);
+    // Scramble difficulty scales with grid size: more cells = more swaps
+    const scrambleCount = size === 3 ? 4 : size === 4 ? 8 : 14;
+    // Retry scrambling if random swaps cancel each other producing too-easy puzzle.
+    // Require actual minMoves >= half of scrambleCount, else regenerate.
+    const minDifficulty = Math.ceil(scrambleCount / 2);
+    let result;
+    let retries = 0;
+    do {
+      current = makeScrambled(target, scrambleCount);
+      result = minSwapsToSort(current, target);
+      retries++;
+    } while (result.count < minDifficulty && retries < 10);
+    minMoves = result.count;
+    minMovesExact = result.exact;
+    minMovesEl.textContent = (minMovesExact ? '' : '~') + minMoves;
+
+    setHintText('Klik kotak pertama, lalu kotak kedua untuk menukar posisi.', false);
+    updateRecordDisplay();
+    render();
+  }
+
+  // ============= HINT =============
+  // Smart hint: find the swap that reduces misplaced cells the most.
+  // Uses an immutable working copy to prevent any chance of corrupting `current`.
+  // Reduction is computed locally per pair — O(1) check per candidate, O(n²) overall.
+  function findBestSwap() {
+    let best = null;
+    let bestReduction = 0; // Only return swap if it actually reduces misplaced cells
+    const work = current.slice();
+
+    for (let i = 0; i < work.length; i++) {
+      for (let j = i + 1; j < work.length; j++) {
+        if (work[i] === work[j]) continue;
+        if (work[i] === target[i] && work[j] === target[j]) continue;
+
+        // We can compute the change locally without scanning entire array:
+        // before: contribution at i, j = (work[i]!==tgt[i]) + (work[j]!==tgt[j])
+        // after:  contribution at i, j = (work[j]!==tgt[i]) + (work[i]!==tgt[j])
+        const before = (work[i] !== target[i] ? 1 : 0) + (work[j] !== target[j] ? 1 : 0);
+        const after = (work[j] !== target[i] ? 1 : 0) + (work[i] !== target[j] ? 1 : 0);
+        const reduction = before - after;
+
+        if (reduction > bestReduction) {
+          bestReduction = reduction;
+          best = { i, j };
+        }
+      }
+    }
+    return best;
+  }
+
+  function showHint() {
+    if (won) return;
+    // Clear any pending hint message timer (from previous "no suggestion")
+    if (hintTimerId) { clearTimeout(hintTimerId); hintTimerId = null; }
+    // If user has a cell selected, deselect it first so the hint isn't confusing
+    if (selected !== null) {
+      selected = null;
+      render();
+    }
+    if (isHinting) {
+      cancelHint();
+      return;
+    }
+    const swap = findBestSwap();
+    if (!swap) {
+      setHintText('Tidak ada saran. Coba acak ulang.', true);
+      // Auto-reset text after 2 seconds
+      hintTimerId = setTimeout(() => {
+        hintTimerId = null;
+        setHintText('Klik kotak pertama, lalu kotak kedua untuk menukar posisi.', false);
+      }, 2000);
+      return;
+    }
+    isHinting = true;
+    setHintText('Petunjuk: tukar kedua kotak yang berkedip.', true);
+
+    if (playCellEls[swap.i]) playCellEls[swap.i].classList.add('hint-source');
+    if (playCellEls[swap.j]) playCellEls[swap.j].classList.add('hint-target');
+    updateUndoBtn();
+
+    // Auto-clear hint after 5 seconds
+    hintTimerId = setTimeout(() => {
+      hintTimerId = null;
+      cancelHint();
+    }, 5000);
+  }
+
+  // ============= EVENTS =============
+  shuffleBtn.addEventListener('click', () => {
+    newGame(); // newGame() handles all hint/timer cleanup
+  });
+  solveBtn.addEventListener('click', showHint);
+  document.getElementById('themeBtn').addEventListener('click', openThemeModal);
+  document.getElementById('themeModalCloseBtn').addEventListener('click', () => {
+    document.getElementById('themeModal').style.display = 'none';
+  });
+  document.getElementById('themeModal').addEventListener('click', (e) => {
+    // Click outside the inner card closes modal
+    if (e.target === document.getElementById('themeModal')) {
+      document.getElementById('themeModal').style.display = 'none';
+    }
+  });
+  document.getElementById('themeSearch').addEventListener('input', (e) => {
+    renderThemeGrid(e.target.value);
+  });
+  undoBtn.addEventListener('click', undo);
+
+  document.getElementById('levels').addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    const newSize = parseInt(e.target.dataset.level);
+    if (newSize === size) return; // Already on this level — no-op
+    document.querySelectorAll('#levels button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    size = newSize;
+    saveState();
+    newGame(); // newGame() handles all hint/timer cleanup
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    // Ignore modified keys (Ctrl+Z, Cmd+R, etc) — let browser handle them
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    let handled = true;
+    if (e.key === 'z' || e.key === 'Z') {
+      undo();
+    } else if (e.key === 'r' || e.key === 'R') {
+      newGame(); // newGame() handles all hint/timer cleanup
+    } else if (e.key === 'h' || e.key === 'H') {
+      showHint();
+    } else if (e.key === 'Escape') {
+      if (isHinting) cancelHint();
+      else if (selected !== null) {
+        selected = null;
+        render();
+      }
+    } else {
+      handled = false;
+    }
+    if (handled) e.preventDefault();
+  });
+
+  // ============= INIT =============
+  loadState();
+  // Set active level button from saved state
+  document.querySelectorAll('#levels button').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.level) === size);
+  });
+  winsEl.textContent = wins;
+  updateCoinDisplay();
+  newGame();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ludo</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #1a1a2e;
+    --panel: #2a2a4a;
+    --board-bg: #f5f5f5;
+    --cell-track: #ffffff;
+    --cell-border: #cccccc;
+    --text: #f0f0f0;
+    --text-dark: #2d2d2d;
+    --accent: #ffd54f;
+    --pr: #e53935;    /* red */
+    --pb: #1976d2;    /* blue */
+    --py: #fbc02d;    /* yellow */
+    --pg: #43a047;    /* green */
+    --pr-soft: #ffcdd2;
+    --pb-soft: #bbdefb;
+    --py-soft: #fff59d;
+    --pg-soft: #c8e6c9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    min-height: 100%;
+    overscroll-behavior: none;
+  }
+  body {
+    background: linear-gradient(180deg, #2a2a4a 0%, var(--bg-dark) 100%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.65rem;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  .back-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.78rem;
+    opacity: 0.7;
+    z-index: 100;
+  }
+
+  .top-bar {
+    width: 100%;
+    max-width: 540px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .logo {
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: -0.02em;
+  }
+  .top-controls { display: flex; gap: 0.4rem; }
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.18); }
+
+  /* ---- Players bar (dynamic 2-4) ---- */
+  .players {
+    width: 100%;
+    max-width: 540px;
+    display: grid;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  @media (max-width: 420px) {
+    .players { grid-template-columns: 1fr 1fr; }
+  }
+  .player {
+    background: rgba(0,0,0,0.3);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 0.35rem 0.5rem;
+    min-width: 0;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .player.active {
+    transform: translateY(-2px);
+  }
+  .player.p-0.active { border-color: var(--pr); box-shadow: 0 4px 12px rgba(229,57,53,0.3); }
+  .player.p-1.active { border-color: var(--pb); box-shadow: 0 4px 12px rgba(25,118,210,0.3); }
+  .player.p-2.active { border-color: var(--py); box-shadow: 0 4px 12px rgba(251,192,45,0.3); }
+  .player.p-3.active { border-color: var(--pg); box-shadow: 0 4px 12px rgba(67,160,71,0.3); }
+  .player-row {
+    display: flex; align-items: center; gap: 0.35rem;
+  }
+  .player-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.3);
+  }
+  .p-0 .player-dot { background: var(--pr); }
+  .p-1 .player-dot { background: var(--pb); }
+  .p-2 .player-dot { background: var(--py); }
+  .p-3 .player-dot { background: var(--pg); }
+  .player-name {
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .player-cpu-tag {
+    font-size: 0.55rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 1px 4px;
+    color: rgba(255,255,255,0.75);
+  }
+  .player-progress {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.7);
+    margin-top: 0.15rem;
+  }
+  .player-progress b { color: var(--accent); }
+
+  /* ---- Board ---- */
+  .board-wrap {
+    width: 100%;
+    max-width: 540px;
+    position: relative;
+  }
+  .board {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--board-bg);
+    border: 3px solid var(--text-dark);
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(15, 1fr);
+    grid-template-rows: repeat(15, 1fr);
+  }
+  .cell {
+    border: 0.5px solid rgba(0,0,0,0.08);
+    position: relative;
+  }
+  /* Yards (corners) */
+  .cell.yard-0 { background: var(--pr-soft); border-color: var(--pr); }
+  .cell.yard-1 { background: var(--pb-soft); border-color: var(--pb); }
+  .cell.yard-2 { background: var(--py-soft); border-color: var(--py); }
+  .cell.yard-3 { background: var(--pg-soft); border-color: var(--pg); }
+  /* Track */
+  .cell.track { background: var(--cell-track); border-color: rgba(0,0,0,0.15); }
+  .cell.start-0 { background: var(--pr); border-color: var(--pr); }
+  .cell.start-1 { background: var(--pb); border-color: var(--pb); }
+  .cell.start-2 { background: var(--py); border-color: var(--py); }
+  .cell.start-3 { background: var(--pg); border-color: var(--pg); }
+  .cell.safe::after {
+    content: '⭐';
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(8px, 1.6vw, 14px);
+    color: rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+  .cell.start-0::after, .cell.start-1::after, .cell.start-2::after, .cell.start-3::after {
+    color: rgba(255,255,255,0.55);
+  }
+  /* Home columns */
+  .cell.home-0 { background: var(--pr); }
+  .cell.home-1 { background: var(--pb); }
+  .cell.home-2 { background: var(--py); }
+  .cell.home-3 { background: var(--pg); }
+  /* Center */
+  .cell.center {
+    background: var(--text-dark);
+    position: relative;
+  }
+  .center-area {
+    position: absolute;
+    left: calc(100% / 15 * 6);
+    top: calc(100% / 15 * 6);
+    width: calc(100% / 15 * 3);
+    height: calc(100% / 15 * 3);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .center-tri {
+    position: relative;
+  }
+  .center-tri.t-0 { background: var(--pr); clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 50% 50%); }
+  .center-tri.t-1 { background: var(--pb); clip-path: polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%); }
+  .center-tri.t-2 { background: var(--py); clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 50% 50%); }
+  .center-tri.t-3 { background: var(--pg); clip-path: polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%); }
+  /* simpler center: 4 colored triangles meeting in middle */
+  .center-area {
+    background: conic-gradient(from 45deg,
+      var(--pr) 0deg 90deg,
+      var(--py) 90deg 180deg,
+      var(--pg) 180deg 270deg,
+      var(--pb) 270deg 360deg);
+  }
+  .center-area > * { display: none; }
+
+  /* Yard inner circle (rounded indication) */
+  .yard-frame {
+    position: absolute;
+    width: calc(100% / 15 * 4);
+    height: calc(100% / 15 * 4);
+    background: rgba(255,255,255,0.6);
+    border: 2px solid rgba(0,0,0,0.15);
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .yard-frame.yf-0 { left: calc(100% / 15); top: calc(100% / 15); }
+  .yard-frame.yf-1 { left: calc(100% / 15 * 10); top: calc(100% / 15); }
+  .yard-frame.yf-2 { left: calc(100% / 15 * 10); top: calc(100% / 15 * 10); }
+  .yard-frame.yf-3 { left: calc(100% / 15); top: calc(100% / 15 * 10); }
+
+  /* Tokens */
+  .tokens-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .token {
+    position: absolute;
+    width: calc(100% / 15 * 0.72);
+    height: calc(100% / 15 * 0.72);
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.45), inset 0 -2px 0 rgba(0,0,0,0.25);
+    transition: left 0.35s cubic-bezier(.4,.0,.2,1), top 0.35s cubic-bezier(.4,.0,.2,1);
+    pointer-events: auto;
+    cursor: default;
+    transform: translate(-50%, -50%);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.95);
+    font-size: clamp(7px, 1.4vw, 11px);
+    font-weight: 800;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+    z-index: 6;
+  }
+  .token.p-0 { background: var(--pr); }
+  .token.p-1 { background: var(--pb); }
+  .token.p-2 { background: var(--py); }
+  .token.p-3 { background: var(--pg); }
+  .token.movable {
+    cursor: pointer;
+    box-shadow: 0 0 0 3px var(--accent), 0 4px 8px rgba(0,0,0,0.5);
+    animation: tokenPulse 1.2s ease-in-out infinite;
+  }
+  .token.active-turn {
+    /* mild glow for the current player's tokens */
+  }
+  @keyframes tokenPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.15); }
+  }
+  .token.at-goal {
+    opacity: 0.7;
+  }
+
+  /* ---- Action panel ---- */
+  .action-panel {
+    width: 100%;
+    max-width: 540px;
+    margin-top: 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    flex-wrap: wrap;
+  }
+  .dice {
+    width: 56px; height: 56px;
+    background: white;
+    border-radius: 10px;
+    padding: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 3px;
+    flex-shrink: 0;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.1);
+  }
+  .dice.rolling { animation: diceShake 0.45s ease-in-out; }
+  @keyframes diceShake {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-12deg); }
+    75% { transform: rotate(12deg); }
+  }
+  .dot {
+    background: var(--text-dark);
+    border-radius: 50%;
+    width: 100%; height: 100%;
+  }
+  .message {
+    flex: 1;
+    min-width: 120px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: rgba(255,255,255,0.85);
+  }
+  .message b { color: var(--text); }
+  .big-btn {
+    background: var(--accent);
+    color: var(--text-dark);
+    border: none;
+    padding: 0.55rem 1.15rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.25);
+    transition: transform 0.12s, box-shadow 0.12s, opacity 0.15s;
+    flex-shrink: 0;
+  }
+  .big-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 0 rgba(0,0,0,0.25); }
+  .big-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,0.25); }
+  .big-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ---- Start / config overlay ---- */
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(15,15,30,0.95);
+    backdrop-filter: blur(4px);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.85rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    text-align: center;
+    z-index: 50;
+    overflow-y: auto;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay h2 {
+    font-size: clamp(1.2rem, 5vw, 1.7rem);
+    font-weight: 800;
+    margin-bottom: 0.35rem;
+  }
+  .overlay .sub {
+    font-size: 0.75rem;
+    opacity: 0.85;
+    margin-bottom: 0.7rem;
+    line-height: 1.4;
+    max-width: 320px;
+  }
+
+  .setup-config {
+    width: 100%;
+    max-width: 360px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    margin-bottom: 0.6rem;
+    text-align: left;
+  }
+  .setup-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    margin-bottom: 0.3rem;
+  }
+  .count-pick {
+    display: flex;
+    gap: 3px;
+    background: rgba(0,0,0,0.3);
+    padding: 3px;
+    border-radius: 999px;
+    margin-bottom: 0.55rem;
+  }
+  .count-pick button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 5px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .count-pick button.active { background: var(--accent); color: var(--text-dark); }
+  .player-cfg-list { display: flex; flex-direction: column; gap: 0.3rem; }
+  .pc-row {
+    display: grid;
+    grid-template-columns: 14px 1fr auto;
+    gap: 0.4rem;
+    align-items: center;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 7px;
+    padding: 0.3rem 0.45rem;
+  }
+  .pc-row .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .pc-row.cfg-p-0 .dot { background: var(--pr); }
+  .pc-row.cfg-p-1 .dot { background: var(--pb); }
+  .pc-row.cfg-p-2 .dot { background: var(--py); }
+  .pc-row.cfg-p-3 .dot { background: var(--pg); }
+  .pc-row input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    outline: none;
+    width: 100%;
+  }
+  .pc-row .role-toggle {
+    display: flex; gap: 2px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+    padding: 2px;
+  }
+  .pc-row .role-toggle button {
+    background: transparent; border: none;
+    color: var(--text);
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-family: inherit; font-weight: 600;
+    font-size: 0.62rem;
+    cursor: pointer;
+  }
+  .pc-row .role-toggle button.active { background: var(--accent); color: var(--text-dark); }
+
+  /* End game standings */
+  .standings {
+    font-size: 0.78rem; line-height: 1.55;
+    text-align: left;
+    background: rgba(0,0,0,0.25);
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 0.6rem;
+    max-width: 280px;
+  }
+  .standings .row { display: flex; gap: 0.35rem; align-items: center; }
+  .standings .row b { color: var(--accent); }
+
+  /* Log */
+  .game-log {
+    width: 100%;
+    max-width: 540px;
+    margin-top: 0.5rem;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .game-log summary {
+    cursor: pointer;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+  }
+  .game-log summary::-webkit-details-marker { display: none; }
+  .game-log .log-list {
+    max-height: 130px;
+    overflow-y: auto;
+    padding: 0.3rem 0.65rem 0.5rem;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    opacity: 0.9;
+  }
+  .game-log .log-list .log-entry {
+    padding: 2px 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.06);
+  }
+  .game-log .log-list .log-entry:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+  <a href="../index.html" class="back-link">← Kembali</a>
+
+  <div class="top-bar">
+    <div class="logo">🎲 Ludo</div>
+    <div class="top-controls">
+      <button class="icon-btn" id="soundBtn" aria-label="Suara">🔊</button>
+      <button class="icon-btn" id="resetBtn" aria-label="Ulang" title="Mulai ulang">↺</button>
+    </div>
+  </div>
+
+  <div class="players" id="playersList"></div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="tokens-layer" id="tokensLayer"></div>
+    <div class="overlay show" id="startOverlay">
+      <h2>🎲 Ludo</h2>
+      <p class="sub">Lempar dadu, bawa 4 bidakmu mengelilingi papan, masuk ke rumah lebih dulu untuk menang!</p>
+      <div class="setup-config">
+        <div class="setup-label">Jumlah Pemain</div>
+        <div class="count-pick" id="countPick">
+          <button data-count="2">2</button>
+          <button data-count="3">3</button>
+          <button data-count="4" class="active">4</button>
+        </div>
+        <div class="setup-label">Pemain</div>
+        <div class="player-cfg-list" id="playerCfgList"></div>
+      </div>
+      <button class="big-btn" id="startBtn">Mulai Bermain</button>
+    </div>
+    <div class="overlay" id="endOverlay">
+      <h2 id="endTitle">🏆 Menang!</h2>
+      <div class="standings" id="endStandings"></div>
+      <button class="big-btn" id="restartBtn">Main Lagi</button>
+    </div>
+  </div>
+
+  <div class="action-panel">
+    <div class="dice" id="dice"></div>
+    <div class="message" id="messageEl">Tekan <b>Mulai</b> untuk bermain.</div>
+    <button class="big-btn" id="rollBtn" disabled>Lempar</button>
+  </div>
+
+  <details class="game-log" id="gameLog">
+    <summary>📜 Riwayat <span id="logCount" style="opacity:0.6;font-weight:400">(0)</span></summary>
+    <div class="log-list" id="logList"></div>
+  </details>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============= CONSTANTS =============
+  const STORAGE_KEY = 'ludo_v1';
+  const BOARD_SIZE = 15;
+
+  // 52 track positions, clockwise starting from Red's first square
+  const TRACK = [
+    [6,1],[6,2],[6,3],[6,4],[6,5],
+    [5,6],[4,6],[3,6],[2,6],[1,6],[0,6],
+    [0,7],
+    [0,8],[1,8],[2,8],[3,8],[4,8],[5,8],
+    [6,9],[6,10],[6,11],[6,12],[6,13],[6,14],
+    [7,14],
+    [8,14],[8,13],[8,12],[8,11],[8,10],[8,9],
+    [9,8],[10,8],[11,8],[12,8],[13,8],[14,8],
+    [14,7],
+    [14,6],[13,6],[12,6],[11,6],[10,6],[9,6],
+    [8,5],[8,4],[8,3],[8,2],[8,1],[8,0],
+    [7,0],[6,0]
+  ];
+
+  // Home columns (5 cells each, going inward)
+  const HOMECOLS = [
+    [[7,1],[7,2],[7,3],[7,4],[7,5]],     // Red
+    [[1,7],[2,7],[3,7],[4,7],[5,7]],     // Blue
+    [[7,13],[7,12],[7,11],[7,10],[7,9]], // Yellow
+    [[13,7],[12,7],[11,7],[10,7],[9,7]]  // Green
+  ];
+
+  const PLAYER_START_IDX = [0, 13, 26, 39];
+  const PLAYER_EXIT_IDX  = [50, 11, 24, 37]; // last track cell before turning into home col
+  const GOAL_CELL = [7, 7];
+  const TOTAL_ADV_TO_GOAL = 56; // adv 0..50 = track (51 cells), 51..55 = home col, 56 = goal
+
+  const PLAYER_NAMES_DEFAULT = ['Merah', 'Biru', 'Kuning', 'Hijau'];
+  const PLAYER_ICONS = ['🔴', '🔵', '🟡', '🟢'];
+
+  // Safe track indices: each player's start + standard mid-arm safe squares.
+  // Standard Ludo safe squares are at indices 0, 8, 13, 21, 26, 34, 39, 47.
+  const SAFE_TRACK = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
+
+  // Yard slot positions per player (4 token "parking" spots inside the yard)
+  const YARD_SLOTS = [
+    [[1.7,1.7],[1.7,3.7],[3.7,1.7],[3.7,3.7]],          // Red TL
+    [[1.7,10.7],[1.7,12.7],[3.7,10.7],[3.7,12.7]],      // Blue TR
+    [[10.7,10.7],[10.7,12.7],[12.7,10.7],[12.7,12.7]],  // Yellow BR
+    [[10.7,1.7],[10.7,3.7],[12.7,1.7],[12.7,3.7]]       // Green BL
+  ];
+
+  // ============= DOM =============
+  const boardEl       = document.getElementById('board');
+  const tokensLayer   = document.getElementById('tokensLayer');
+  const playersListEl = document.getElementById('playersList');
+  const playerCfgList = document.getElementById('playerCfgList');
+  const diceEl        = document.getElementById('dice');
+  const messageEl     = document.getElementById('messageEl');
+  const rollBtn       = document.getElementById('rollBtn');
+  const resetBtn      = document.getElementById('resetBtn');
+  const soundBtn      = document.getElementById('soundBtn');
+  const startOverlay  = document.getElementById('startOverlay');
+  const endOverlay    = document.getElementById('endOverlay');
+  const startBtn      = document.getElementById('startBtn');
+  const restartBtn    = document.getElementById('restartBtn');
+  const logListEl     = document.getElementById('logList');
+  const logCountEl    = document.getElementById('logCount');
+
+  // ============= STATE =============
+  // Each token: { player, idx, state: 'yard'|'track'|'home'|'goal', adv: number }
+  //   adv: 0..50 = on track, 51..55 = home col, 56 = goal
+  let players = [];          // [{ name, isCPU, color }, ...]
+  let tokens = [];           // [{ player, idx, state, adv }, ...x N*4]
+  let setupCount = 4;
+  let setupPlayers = [
+    { name: 'Kamu',       isAI: false },
+    { name: 'Komputer 1', isAI: true  },
+    { name: 'Komputer 2', isAI: true  },
+    { name: 'Komputer 3', isAI: true  }
+  ];
+  let turnIdx = 0;
+  let dieValue = 0;
+  let phase = 'idle';       // idle | rolling | choosing | animating | gameover
+  let consecutiveSixes = 0;
+  let gameStarted = false;
+  let gameOver = false;
+  let busy = false;
+  let pendingTimers = [];
+  let soundOn = true;
+  let audioCtx = null;
+  let logEntries = [];
+  // Standings (finish order): array of player indices in order they finished
+  let finishOrder = [];
+
+  // ============= PERSISTENCE =============
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        setupCount,
+        setupPlayers: setupPlayers.map(p => ({ name: p.name, isAI: p.isAI })),
+        soundOn
+      }));
+    } catch(e) {}
+  }
+  function loadState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        if ([2,3,4].includes(data.setupCount)) setupCount = data.setupCount;
+        if (Array.isArray(data.setupPlayers)) {
+          for (let i = 0; i < Math.min(4, data.setupPlayers.length); i++) {
+            const sp = data.setupPlayers[i];
+            if (sp && typeof sp === 'object') {
+              if (typeof sp.name === 'string') setupPlayers[i].name = sp.name.slice(0, 14);
+              if (typeof sp.isAI === 'boolean') setupPlayers[i].isAI = sp.isAI;
+            }
+          }
+        }
+        soundOn = data.soundOn !== false;
+      }
+    } catch(e) {}
+  }
+
+  // ============= SOUND =============
+  function ensureAudio() {
+    if (!soundOn) return false;
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return false; }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    return true;
+  }
+  function playSound(type) {
+    if (!ensureAudio()) return;
+    const t = audioCtx.currentTime;
+    if (type === 'roll') {
+      for (let i = 0; i < 4; i++) {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(200 + Math.random() * 120, t + i * 0.06);
+        g.gain.setValueAtTime(0.04, t + i * 0.06);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.06 + 0.05);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t + i * 0.06); o.stop(t + i * 0.06 + 0.06);
+      }
+    } else if (type === 'move') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(500, t);
+      g.gain.setValueAtTime(0.05, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.1);
+    } else if (type === 'capture') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(800, t);
+      o.frequency.exponentialRampToValueAtTime(150, t + 0.4);
+      g.gain.setValueAtTime(0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.42);
+    } else if (type === 'win') {
+      [523, 659, 784, 1046].forEach((f, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(f, t + i * 0.08);
+        g.gain.setValueAtTime(0.1, t + i * 0.08);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.08 + 0.25);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.27);
+      });
+    } else if (type === 'reachhome') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(659, t);
+      o.frequency.linearRampToValueAtTime(1046, t + 0.15);
+      g.gain.setValueAtTime(0.09, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.22);
+    }
+  }
+
+  // ============= BOARD RENDERING =============
+  function classForCell(r, c) {
+    // Yards: 6x6 corners
+    if (r <= 5 && c <= 5) return 'yard-0';
+    if (r <= 5 && c >= 9) return 'yard-1';
+    if (r >= 9 && c >= 9) return 'yard-2';
+    if (r >= 9 && c <= 5) return 'yard-3';
+    // Center 3x3
+    if (r >= 6 && r <= 8 && c >= 6 && c <= 8) return 'center';
+    // Home columns (5 cells each, NOT including center)
+    for (let p = 0; p < 4; p++) {
+      for (const [hr, hc] of HOMECOLS[p]) {
+        if (hr === r && hc === c) return `home-${p}`;
+      }
+    }
+    // Track cells
+    for (let i = 0; i < TRACK.length; i++) {
+      if (TRACK[i][0] === r && TRACK[i][1] === c) {
+        // Check if it's a player start
+        for (let p = 0; p < 4; p++) {
+          if (PLAYER_START_IDX[p] === i) return `track start-${p} safe`;
+        }
+        if (SAFE_TRACK.has(i)) return 'track safe';
+        return 'track';
+      }
+    }
+    // Otherwise: blank (inner part of arms not used)
+    return '';
+  }
+
+  function buildBoard() {
+    boardEl.innerHTML = '';
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell ' + classForCell(r, c);
+        boardEl.appendChild(cell);
+      }
+    }
+    // Center conic-gradient marker (above grid cells in z-order)
+    const ca = document.createElement('div');
+    ca.className = 'center-area';
+    boardEl.appendChild(ca);
+    // Yard frames (rounded "pen" rectangles inside each yard)
+    for (let p = 0; p < 4; p++) {
+      const yf = document.createElement('div');
+      yf.className = `yard-frame yf-${p}`;
+      boardEl.appendChild(yf);
+    }
+  }
+
+  // ============= TOKEN POSITIONING =============
+  // Get the (row, col) where a token currently sits
+  function tokenCoord(tok) {
+    if (tok.state === 'yard') {
+      const slot = YARD_SLOTS[tok.player][tok.idx];
+      return { r: slot[0], c: slot[1] };
+    }
+    if (tok.state === 'track') {
+      const ti = (PLAYER_START_IDX[tok.player] + tok.adv) % 52;
+      const [r, c] = TRACK[ti];
+      return { r, c };
+    }
+    if (tok.state === 'home') {
+      // adv 51..55 → home col 0..4
+      const idx = tok.adv - 51;
+      const [r, c] = HOMECOLS[tok.player][idx];
+      return { r, c };
+    }
+    if (tok.state === 'goal') {
+      const [r, c] = GOAL_CELL;
+      // Distribute 4 finished tokens around center
+      const offsets = [[0, -0.4], [-0.4, 0], [0, 0.4], [0.4, 0]];
+      const off = offsets[tok.idx] || [0, 0];
+      return { r: r + off[0], c: c + off[1] };
+    }
+    return { r: 0, c: 0 };
+  }
+  // Convert grid (r, c) to percentage for token positioning (center of cell)
+  function rcToPercent(r, c) {
+    const left = ((c + 0.5) / BOARD_SIZE) * 100;
+    const top  = ((r + 0.5) / BOARD_SIZE) * 100;
+    return { left, top };
+  }
+  // Group all on-board tokens by (r, c) so we can fan them out when sharing a cell.
+  function getCellGrouping() {
+    const groups = {};
+    for (const tok of tokens) {
+      if (tok.state !== 'track' && tok.state !== 'home') continue;
+      const { r, c } = tokenCoord(tok);
+      const k = `${r},${c}`;
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(tok);
+    }
+    return groups;
+  }
+  // Build the 16 token DOM elements once. Subsequent renders only mutate their
+  // style + classes so CSS transitions animate the movement.
+  function ensureTokenElements() {
+    for (const tok of tokens) {
+      const id = `tok-${tok.player}-${tok.idx}`;
+      let el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = id;
+        el.className = `token p-${tok.player}`;
+        el.dataset.player = tok.player;
+        el.dataset.idx = tok.idx;
+        el.textContent = String(tok.idx + 1);
+        el.addEventListener('click', () => onTokenClick(tok));
+        // Place initially WITHOUT transition so first appearance doesn't slide in
+        el.style.transition = 'none';
+        const { r, c } = tokenCoord(tok);
+        const { left, top } = rcToPercent(r, c);
+        el.style.left = left + '%';
+        el.style.top  = top + '%';
+        tokensLayer.appendChild(el);
+        // Force reflow then restore transition
+        void el.offsetWidth;
+        el.style.transition = '';
+      }
+    }
+  }
+  function renderTokens() {
+    // Remove DOM nodes for tokens that no longer exist (e.g. after reset)
+    const valid = new Set(tokens.map(t => `tok-${t.player}-${t.idx}`));
+    Array.from(tokensLayer.children).forEach(el => {
+      if (!valid.has(el.id)) el.remove();
+    });
+    ensureTokenElements();
+    const groups = getCellGrouping();
+    for (const tok of tokens) {
+      const id = `tok-${tok.player}-${tok.idx}`;
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.classList.toggle('at-goal', tok.state === 'goal');
+      const { r, c } = tokenCoord(tok);
+      // Fan-out logic for shared cell (track + home only)
+      let offR = 0, offC = 0;
+      if (tok.state === 'track' || tok.state === 'home') {
+        const group = groups[`${r},${c}`] || [];
+        if (group.length > 1) {
+          const slotIdx = group.indexOf(tok);
+          const fanOffsets = [
+            [[-0.16, -0.16], [0.16, 0.16]],
+            [[-0.18, -0.18], [0.18, -0.18], [0, 0.2]],
+            [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]],
+            [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2], [0, 0]],
+            [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22], [-0.22, 0], [0.22, 0]]
+          ];
+          const fan = fanOffsets[Math.min(group.length - 2, fanOffsets.length - 1)];
+          const off = fan[Math.min(slotIdx, fan.length - 1)];
+          offR = off[0]; offC = off[1];
+        }
+      }
+      const { left, top } = rcToPercent(r + offR, c + offC);
+      el.style.left = left + '%';
+      el.style.top  = top + '%';
+    }
+    updateMovableHighlights();
+    updatePlayerCards();
+  }
+
+  function updateMovableHighlights() {
+    document.querySelectorAll('.token.movable').forEach(el => el.classList.remove('movable'));
+    if (phase !== 'choosing' || gameOver) return;
+    const moves = movableTokensFor(turnIdx, dieValue);
+    for (const tok of moves) {
+      const el = tokensLayer.querySelector(`.token[data-player="${tok.player}"][data-idx="${tok.idx}"]`);
+      if (el) el.classList.add('movable');
+    }
+  }
+
+  // ============= GAME LOGIC =============
+  function makeFreshTokens() {
+    tokens = [];
+    for (let p = 0; p < players.length; p++) {
+      for (let i = 0; i < 4; i++) {
+        tokens.push({ player: p, idx: i, state: 'yard', adv: 0 });
+      }
+    }
+  }
+
+  function tokensOf(playerIdx) {
+    return tokens.filter(t => t.player === playerIdx);
+  }
+
+  // Compute the resulting state if `tok` were to advance by `die`.
+  // Returns: { ok: bool, newState, newAdv, capture: [tok, ...] }
+  function simulateMove(tok, die) {
+    if (tok.state === 'yard') {
+      if (die !== 6) return { ok: false };
+      // Leave yard onto start square
+      const newState = 'track';
+      const newAdv = 0;
+      // Check capture at start square
+      const cap = findCaptures(tok.player, computeTrackIdx(tok.player, 0), null);
+      return { ok: true, newState, newAdv, capture: cap, leftYard: true };
+    }
+    if (tok.state === 'goal') return { ok: false };
+    if (tok.state === 'track' || tok.state === 'home') {
+      const newAdv = tok.adv + die;
+      if (newAdv > TOTAL_ADV_TO_GOAL) return { ok: false }; // overshoot
+      if (newAdv === TOTAL_ADV_TO_GOAL) {
+        return { ok: true, newState: 'goal', newAdv, capture: [], reachedGoal: true };
+      }
+      if (newAdv >= 51) {
+        // Lands in home column — captures don't apply in home col
+        return { ok: true, newState: 'home', newAdv, capture: [] };
+      }
+      // Lands on track
+      const newTrackIdx = computeTrackIdx(tok.player, newAdv);
+      const cap = findCaptures(tok.player, newTrackIdx, null);
+      return { ok: true, newState: 'track', newAdv, capture: cap };
+    }
+    return { ok: false };
+  }
+
+  function computeTrackIdx(playerIdx, adv) {
+    return (PLAYER_START_IDX[playerIdx] + adv) % 52;
+  }
+
+  // Find captures: list of opposing tokens on the given track index that are NOT on safe squares
+  function findCaptures(byPlayer, trackIdx, exceptTok) {
+    if (SAFE_TRACK.has(trackIdx)) return [];
+    return tokens.filter(t =>
+      t !== exceptTok &&
+      t.player !== byPlayer &&
+      t.state === 'track' &&
+      computeTrackIdx(t.player, t.adv) === trackIdx
+    );
+  }
+
+  function movableTokensFor(playerIdx, die) {
+    const out = [];
+    for (const tok of tokensOf(playerIdx)) {
+      if (simulateMove(tok, die).ok) out.push(tok);
+    }
+    return out;
+  }
+
+  // Apply a move (mutate state). Returns { capture, reachedGoal, leftYard }.
+  function applyMove(tok, die) {
+    const result = simulateMove(tok, die);
+    if (!result.ok) return null;
+    tok.state = result.newState;
+    tok.adv = result.newAdv;
+    // Send captured tokens back to yard
+    for (const cap of result.capture) {
+      cap.state = 'yard';
+      cap.adv = 0;
+    }
+    return result;
+  }
+
+  // ============= TURN FLOW =============
+  async function startTurn() {
+    if (gameOver) return;
+    // Skip players who've already finished
+    let safety = 0;
+    while (players[turnIdx] && allTokensFinished(turnIdx)) {
+      turnIdx = (turnIdx + 1) % players.length;
+      safety++;
+      if (safety > players.length) { return; }
+    }
+    consecutiveSixes = 0;
+    phase = 'rolling';
+    updateActivePlayer();
+    renderActionPanel();
+    if (players[turnIdx].isCPU) {
+      setMessage(`${PLAYER_ICONS[turnIdx]} <b>${escapeHtml(players[turnIdx].name)}</b> berpikir...`);
+      await sleep(700);
+      if (gameOver) return;
+      await rollAndAct();
+    } else {
+      setMessage(`Giliran <b>${escapeHtml(players[turnIdx].name)}</b> — tekan Lempar.`);
+    }
+  }
+
+  async function rollAndAct() {
+    if (gameOver || phase === 'animating') return;
+    busy = true;
+    rollBtn.disabled = true;
+    const die = await rollDiceAnimated();
+    if (gameOver) { busy = false; return; }
+    dieValue = die;
+    log(PLAYER_ICONS[turnIdx], `${escapeHtml(players[turnIdx].name)} dadu <b>${die}</b>`);
+
+    // 3 sixes in a row → forfeit
+    if (die === 6) {
+      consecutiveSixes++;
+      if (consecutiveSixes >= 3) {
+        setMessage(`<b>${escapeHtml(players[turnIdx].name)}</b> dapat 3× dadu 6 — giliran hangus!`);
+        log('⛔', `${escapeHtml(players[turnIdx].name)}: 3 dadu 6 berturut-turut → giliran hangus`);
+        await sleep(900);
+        nextPlayer();
+        busy = false;
+        return;
+      }
+    } else {
+      consecutiveSixes = 0;
+    }
+
+    const movable = movableTokensFor(turnIdx, die);
+    if (movable.length === 0) {
+      setMessage(`${PLAYER_ICONS[turnIdx]} Tidak ada gerakan dengan dadu <b>${die}</b>.`);
+      await sleep(900);
+      // If rolled a 6, doesn't grant extra turn when can't move
+      nextPlayer();
+      busy = false;
+      return;
+    }
+
+    phase = 'choosing';
+    updateMovableHighlights();
+    if (players[turnIdx].isCPU) {
+      // CPU picks best token
+      const choice = cpuChooseToken(movable, die);
+      await sleep(500);
+      if (!gameOver) await executeMove(choice, die);
+    } else {
+      setMessage(`Pilih bidak yang akan digerakkan ${die} langkah.`);
+      busy = false;
+    }
+  }
+
+  async function executeMove(tok, die) {
+    if (phase !== 'choosing') return;
+    if (!simulateMove(tok, die).ok) return;
+    phase = 'animating';
+    busy = true;
+    updateMovableHighlights();
+    const result = applyMove(tok, die);
+    if (!result) { busy = false; return; }
+    renderTokens();
+    playSound('move');
+    log(PLAYER_ICONS[turnIdx], `Bidak ke-${tok.idx + 1} maju ${die}`);
+    await sleep(350);
+
+    let extraTurn = false;
+    if (result.capture && result.capture.length > 0) {
+      playSound('capture');
+      const capNames = result.capture.map(c => `${PLAYER_ICONS[c.player]} bidak-${c.idx + 1}`).join(', ');
+      log('💥', `Menangkap ${capNames}!`);
+      setMessage(`💥 Menangkap ${result.capture.length} bidak lawan! Giliran lagi.`);
+      extraTurn = true;
+      await sleep(500);
+    }
+    if (result.reachedGoal) {
+      playSound('reachhome');
+      log('🏠', `Bidak masuk rumah`);
+      extraTurn = true;
+      // Check win condition (all 4 tokens at goal)
+      if (allTokensFinished(turnIdx)) {
+        finishOrder.push(turnIdx);
+        log('🏆', `<b>${escapeHtml(players[turnIdx].name)}</b> selesai!`);
+        // Game ends when only one player remains
+        const stillPlaying = players.filter((_, i) => !allTokensFinished(i));
+        if (stillPlaying.length <= 1) {
+          // Add the last surviving player to finishOrder
+          if (stillPlaying.length === 1) {
+            const lastIdx = players.findIndex((_, i) => !allTokensFinished(i));
+            if (lastIdx >= 0 && !finishOrder.includes(lastIdx)) finishOrder.push(lastIdx);
+          }
+          endGame();
+          busy = false;
+          return;
+        }
+      }
+    }
+    if (die === 6) extraTurn = true;
+
+    busy = false;
+    if (extraTurn && !gameOver) {
+      phase = 'rolling';
+      updateActivePlayer();
+      renderActionPanel();
+      if (players[turnIdx].isCPU) {
+        await sleep(500);
+        if (!gameOver) await rollAndAct();
+      } else {
+        setMessage(`<b>${escapeHtml(players[turnIdx].name)}</b> — lempar lagi!`);
+      }
+    } else {
+      nextPlayer();
+    }
+  }
+
+  function nextPlayer() {
+    consecutiveSixes = 0;
+    phase = 'idle';
+    let safety = 0;
+    do {
+      turnIdx = (turnIdx + 1) % players.length;
+      safety++;
+      if (safety > players.length * 2) break;
+    } while (allTokensFinished(turnIdx));
+    startTurn();
+  }
+
+  function allTokensFinished(playerIdx) {
+    return tokensOf(playerIdx).every(t => t.state === 'goal');
+  }
+
+  // ============= CPU AI =============
+  // Score a candidate move (higher = better)
+  function scoreMove(tok, die) {
+    const sim = simulateMove(tok, die);
+    if (!sim.ok) return -Infinity;
+    let score = 0;
+    if (sim.reachedGoal) score += 100;
+    if (sim.leftYard) score += 30;
+    if (sim.capture && sim.capture.length > 0) {
+      score += 50 * sim.capture.length;
+    }
+    // Reward progress
+    score += sim.newAdv;
+    // Reward landing on safe square
+    if (sim.newState === 'track') {
+      const newTrack = computeTrackIdx(tok.player, sim.newAdv);
+      if (SAFE_TRACK.has(newTrack)) score += 8;
+      // Penalty if landing adjacent to an opponent who can capture us next turn
+      // (simple: check if an opponent within 1-6 squares behind)
+      for (const opp of tokens) {
+        if (opp.player === tok.player || opp.state !== 'track') continue;
+        const oppTrack = computeTrackIdx(opp.player, opp.adv);
+        // Compute steps from opp to our new pos going clockwise
+        let steps = newTrack - oppTrack;
+        if (steps <= 0) steps += 52;
+        if (steps >= 1 && steps <= 6) {
+          // Only counts if opp hasn't passed their exit (opp would still be on main track after rolling)
+          // Skip the deep check; just penalize lightly
+          if (!SAFE_TRACK.has(newTrack)) score -= 5;
+          break;
+        }
+      }
+    }
+    if (sim.newState === 'home') score += 20;
+    return score;
+  }
+  function cpuChooseToken(movable, die) {
+    let best = movable[0];
+    let bestScore = -Infinity;
+    for (const tok of movable) {
+      const s = scoreMove(tok, die);
+      if (s > bestScore) { bestScore = s; best = tok; }
+    }
+    return best;
+  }
+
+  // ============= DICE =============
+  const DICE_PATTERNS = {
+    1: [[2,2]],
+    2: [[1,3],[3,1]],
+    3: [[1,3],[2,2],[3,1]],
+    4: [[1,1],[1,3],[3,1],[3,3]],
+    5: [[1,1],[1,3],[2,2],[3,1],[3,3]],
+    6: [[1,1],[1,3],[2,1],[2,3],[3,1],[3,3]]
+  };
+  function renderDice(face) {
+    diceEl.innerHTML = '';
+    const pat = DICE_PATTERNS[face] || [];
+    for (const [r, c] of pat) {
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.style.gridRow = r;
+      dot.style.gridColumn = c;
+      diceEl.appendChild(dot);
+    }
+  }
+  function rollDiceAnimated() {
+    return new Promise(resolve => {
+      diceEl.classList.add('rolling');
+      playSound('roll');
+      let frame = 0;
+      const interval = setInterval(() => {
+        frame++;
+        renderDice(Math.floor(Math.random() * 6) + 1);
+        if (frame >= 8) {
+          clearInterval(interval);
+          const finalFace = Math.floor(Math.random() * 6) + 1;
+          renderDice(finalFace);
+          diceEl.classList.remove('rolling');
+          resolve(finalFace);
+        }
+      }, 65);
+      pendingTimers.push({ type: 'interval', id: interval });
+    });
+  }
+
+  // ============= UI =============
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
+  function setMessage(html) { messageEl.innerHTML = html; }
+
+  function buildPlayerCards() {
+    playersListEl.innerHTML = '';
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      const finished = tokensOf(i).filter(t => t.state === 'goal').length;
+      const card = document.createElement('div');
+      card.className = `player p-${i}`;
+      card.id = `playerCard${i}`;
+      card.innerHTML = `
+        <div class="player-row">
+          <div class="player-dot"></div>
+          <div class="player-name">${escapeHtml(p.name)} ${PLAYER_ICONS[i]}</div>
+          ${p.isCPU ? '<span class="player-cpu-tag">CPU</span>' : ''}
+        </div>
+        <div class="player-progress"><b id="finished${i}">${finished}</b>/4 di rumah</div>
+      `;
+      playersListEl.appendChild(card);
+    }
+  }
+  function updatePlayerCards() {
+    for (let i = 0; i < players.length; i++) {
+      const el = document.getElementById('finished' + i);
+      if (el) el.textContent = tokensOf(i).filter(t => t.state === 'goal').length;
+    }
+  }
+  function updateActivePlayer() {
+    document.querySelectorAll('.player').forEach((el, i) => {
+      el.classList.toggle('active', i === turnIdx && !gameOver);
+    });
+  }
+  function renderActionPanel() {
+    if (gameOver) {
+      rollBtn.disabled = true;
+      return;
+    }
+    if (!gameStarted) {
+      rollBtn.disabled = true;
+      return;
+    }
+    if (phase === 'rolling' && !players[turnIdx].isCPU) {
+      rollBtn.disabled = false;
+      rollBtn.textContent = 'Lempar';
+    } else {
+      rollBtn.disabled = true;
+    }
+  }
+
+  // ============= TOKEN CLICK =============
+  function onTokenClick(tok) {
+    if (gameOver || phase !== 'choosing') return;
+    if (players[turnIdx].isCPU) return;
+    if (tok.player !== turnIdx) return;
+    if (busy) return;
+    if (!simulateMove(tok, dieValue).ok) return;
+    executeMove(tok, dieValue);
+  }
+
+  // ============= LOG =============
+  function log(icon, html) {
+    logEntries.push({ icon, html });
+    if (logEntries.length > 100) logEntries.shift();
+    renderLog();
+  }
+  function renderLog() {
+    if (!logListEl) return;
+    const ordered = logEntries.slice().reverse();
+    logListEl.innerHTML = ordered.map(e =>
+      `<div class="log-entry"><span style="margin-right:0.3rem">${e.icon}</span>${e.html}</div>`
+    ).join('');
+    if (logCountEl) logCountEl.textContent = `(${logEntries.length})`;
+  }
+
+  // ============= LIFECYCLE =============
+  function clearAllTimers() {
+    for (const t of pendingTimers) {
+      if (t.type === 'interval') clearInterval(t.id);
+      else clearTimeout(t.id);
+    }
+    pendingTimers = [];
+  }
+  function sleep(ms) {
+    return new Promise(resolve => {
+      const id = setTimeout(resolve, ms);
+      pendingTimers.push({ type: 'timeout', id });
+    });
+  }
+
+  function startGame() {
+    clearAllTimers();
+    players = [];
+    for (let i = 0; i < setupCount; i++) {
+      const sp = setupPlayers[i];
+      players.push({
+        name: sp.name || PLAYER_NAMES_DEFAULT[i],
+        isCPU: !!sp.isAI
+      });
+    }
+    finishOrder = [];
+    makeFreshTokens();
+    turnIdx = 0;
+    dieValue = 0;
+    consecutiveSixes = 0;
+    gameStarted = true;
+    gameOver = false;
+    busy = false;
+    phase = 'idle';
+    logEntries = [];
+    startOverlay.classList.remove('show');
+    endOverlay.classList.remove('show');
+    buildPlayerCards();
+    renderTokens();
+    updateActivePlayer();
+    renderDice(1);
+    renderLog();
+    log('🎮', `Permainan dimulai — ${players.length} pemain.`);
+    if (window.GameHub) window.GameHub.notify('game_start', { gameId: 16 });
+    startTurn();
+  }
+
+  function endGame() {
+    gameOver = true;
+    busy = false;
+    phase = 'gameover';
+    rollBtn.disabled = true;
+    renderTokens();
+    updateActivePlayer();
+    playSound('win');
+    saveState();
+    // Build standings
+    const standingsHtml = finishOrder.map((pIdx, rank) =>
+      `<div class="row">${rank + 1}. ${PLAYER_ICONS[pIdx]} <b>${escapeHtml(players[pIdx].name)}</b>${rank === 0 ? ' 🏆' : ''}</div>`
+    ).join('');
+    document.getElementById('endTitle').innerHTML = `🏆 ${escapeHtml(players[finishOrder[0]].name)} Menang!`;
+    document.getElementById('endStandings').innerHTML = standingsHtml || '<div style="opacity:0.7">—</div>';
+    log('🏆', `<b>${escapeHtml(players[finishOrder[0]].name)}</b> menjuarai permainan!`);
+    // GameHub reward
+    const winner = players[finishOrder[0]];
+    if (window.GameHub) {
+      window.GameHub.notify('g16_win', { isHuman: !winner.isCPU });
+      if (!winner.isCPU) {
+        const coins = 80 + (players.length - 2) * 30;
+        window.GameHub.coins.add(coins);
+      }
+    }
+    endOverlay.classList.add('show');
+  }
+
+  function fullReset() {
+    clearAllTimers();
+    gameStarted = false;
+    gameOver = false;
+    busy = false;
+    phase = 'idle';
+    players = [];
+    tokens = [];
+    finishOrder = [];
+    logEntries = [];
+    renderLog();
+    startOverlay.classList.add('show');
+    endOverlay.classList.remove('show');
+    rollBtn.disabled = true;
+    setMessage('Tekan <b>Mulai</b> untuk bermain.');
+    renderDice(1);
+    buildSetupUI();
+  }
+
+  // ============= SETUP UI =============
+  function buildSetupUI() {
+    document.querySelectorAll('#countPick button').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.count) === setupCount);
+    });
+    playerCfgList.innerHTML = '';
+    for (let i = 0; i < setupCount; i++) {
+      const sp = setupPlayers[i];
+      const row = document.createElement('div');
+      row.className = `pc-row cfg-p-${i}`;
+      row.innerHTML = `
+        <div class="dot"></div>
+        <input data-idx="${i}" class="cfg-name" type="text" maxlength="14" value="${escapeHtml(sp.name)}" />
+        <div class="role-toggle">
+          <button data-idx="${i}" data-role="human" class="${!sp.isAI ? 'active' : ''}">Manusia</button>
+          <button data-idx="${i}" data-role="cpu" class="${sp.isAI ? 'active' : ''}">CPU</button>
+        </div>
+      `;
+      playerCfgList.appendChild(row);
+    }
+    playerCfgList.querySelectorAll('.cfg-name').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = parseInt(inp.dataset.idx);
+        setupPlayers[idx].name = inp.value.trim() || PLAYER_NAMES_DEFAULT[idx];
+        saveState();
+      });
+    });
+    playerCfgList.querySelectorAll('.role-toggle button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        setupPlayers[idx].isAI = btn.dataset.role === 'cpu';
+        const row = btn.closest('.pc-row');
+        row.querySelectorAll('.role-toggle button').forEach(b =>
+          b.classList.toggle('active', b.dataset.role === btn.dataset.role)
+        );
+        saveState();
+        btn.blur();
+      });
+    });
+  }
+
+  // ============= EVENT WIRING =============
+  rollBtn.addEventListener('click', () => {
+    if (busy || phase !== 'rolling') return;
+    if (gameOver || !gameStarted) return;
+    if (players[turnIdx].isCPU) return;
+    rollAndAct();
+  });
+  startBtn.addEventListener('click', () => startGame());
+  restartBtn.addEventListener('click', () => fullReset());
+  resetBtn.addEventListener('click', () => {
+    if (gameStarted && !gameOver) {
+      if (!confirm('Mulai ulang? Permainan saat ini akan dihapus.')) return;
+    }
+    fullReset();
+  });
+  document.querySelectorAll('#countPick button').forEach(b => {
+    b.addEventListener('click', () => {
+      const c = parseInt(b.dataset.count) || 4;
+      if (c === setupCount) return;
+      setupCount = c;
+      buildSetupUI();
+      saveState();
+      b.blur();
+    });
+  });
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    saveState();
+    if (soundOn) ensureAudio();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === ' ' || e.key === 'Enter') {
+      const focused = document.activeElement;
+      if (focused && focused.tagName === 'BUTTON') return;
+      if (startOverlay.classList.contains('show')) {
+        e.preventDefault();
+        startBtn.click();
+      } else if (endOverlay.classList.contains('show')) {
+        e.preventDefault();
+        restartBtn.click();
+      } else if (phase === 'rolling' && !busy && !players[turnIdx].isCPU) {
+        e.preventDefault();
+        rollAndAct();
+      }
+    } else if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      resetBtn.click();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!audioCtx) return;
+    if (document.hidden && audioCtx.state === 'running') audioCtx.suspend().catch(()=>{});
+    else if (!document.hidden && audioCtx.state === 'suspended' && soundOn) audioCtx.resume().catch(()=>{});
+  });
+
+  // ============= INIT =============
+  loadState();
+  soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  buildBoard();
+  buildSetupUI();
+  renderDice(1);
+  startOverlay.classList.add('show');
+  if (window.GameHub) window.GameHub.notify('game_start', { gameId: 16 });
+})();
+</script>
+</body>
+</html>

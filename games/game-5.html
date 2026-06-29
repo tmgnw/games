@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>2048</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #0f0f1a;
+    --board-bg: #1a1a2e;
+    --slot-bg: rgba(255,255,255,0.04);
+    --border: #2a2a4a;
+    --text: #f0f0f0;
+    --text-muted: rgba(240,240,240,0.6);
+    --accent: #edc22e;
+
+    --tile-2-bg: #eee4da; --tile-2-fg: #2d2d2d;
+    --tile-4-bg: #ede0c8; --tile-4-fg: #2d2d2d;
+    --tile-8-bg: #f2b179; --tile-8-fg: #ffffff;
+    --tile-16-bg: #f59563; --tile-16-fg: #ffffff;
+    --tile-32-bg: #f67c5f; --tile-32-fg: #ffffff;
+    --tile-64-bg: #f65e3b; --tile-64-fg: #ffffff;
+    --tile-128-bg: #edcf72; --tile-128-fg: #ffffff;
+    --tile-256-bg: #edcc61; --tile-256-fg: #ffffff;
+    --tile-512-bg: #edc850; --tile-512-fg: #ffffff;
+    --tile-1024-bg: #edc53f; --tile-1024-fg: #ffffff;
+    --tile-2048-bg: #edc22e; --tile-2048-fg: #ffffff;
+    --tile-super-bg: #3c3a32; --tile-super-fg: #ffffff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg-dark);
+    background-image:
+      radial-gradient(ellipse at 20% 15%, rgba(237,194,46,0.08) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 85%, rgba(246,124,95,0.08) 0%, transparent 55%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  /* ---- Top bar ---- */
+  .top-bar {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding: 0 0.25rem;
+  }
+  .logo {
+    font-weight: 900;
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent) 0%, #f67c5f 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .top-controls { display: flex; gap: 0.5rem; }
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: none;
+    cursor: pointer;
+    font-size: 1.05rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .icon-btn:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
+  .icon-btn:active:not(:disabled) { transform: scale(0.92); }
+  .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---- Stats ---- */
+  .stats {
+    width: 100%;
+    max-width: 420px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+  .stat {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.55rem 0.9rem;
+    text-align: center;
+  }
+  .stat-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-bottom: 0.1rem;
+  }
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    transition: transform 0.15s, color 0.15s;
+    line-height: 1;
+  }
+  .stat-value.bump { animation: bump 0.3s ease; }
+  .stat .delta {
+    position: absolute;
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 1rem;
+    opacity: 0;
+    pointer-events: none;
+    animation: floatUp 0.6s ease-out forwards;
+  }
+  @keyframes bump {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); color: var(--accent); }
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-30px); }
+  }
+  .stat-value.high { color: var(--accent); }
+
+  /* ---- Board ---- */
+  .board-wrap {
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+  }
+  .board {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--board-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2.5%;
+    --gap: 2.5%;
+    --cells: 4;
+    --cell-size: calc((100% - var(--gap) * (var(--cells) - 1)) / var(--cells));
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: var(--gap);
+    width: 100%;
+    height: 100%;
+  }
+  .slot {
+    background: var(--slot-bg);
+    border-radius: 8px;
+  }
+  .tile-layer {
+    position: absolute;
+    inset: 2.5%;
+    pointer-events: none;
+  }
+
+  .tile {
+    position: absolute;
+    width: var(--cell-size);
+    height: var(--cell-size);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: var(--tile-2-fg);
+    background: var(--tile-2-bg);
+    transition: top 0.13s ease, left 0.13s ease;
+    /* Position computed from --row / --col CSS vars */
+    top: calc(var(--row) * (var(--cell-size) + var(--gap)));
+    left: calc(var(--col) * (var(--cell-size) + var(--gap)));
+    font-size: clamp(1rem, 5vw, 1.7rem);
+  }
+  .tile[data-value="2"] { background: var(--tile-2-bg); color: var(--tile-2-fg); }
+  .tile[data-value="4"] { background: var(--tile-4-bg); color: var(--tile-4-fg); }
+  .tile[data-value="8"] { background: var(--tile-8-bg); color: var(--tile-8-fg); }
+  .tile[data-value="16"] { background: var(--tile-16-bg); color: var(--tile-16-fg); }
+  .tile[data-value="32"] { background: var(--tile-32-bg); color: var(--tile-32-fg); }
+  .tile[data-value="64"] { background: var(--tile-64-bg); color: var(--tile-64-fg); }
+  .tile[data-value="128"] { background: var(--tile-128-bg); color: var(--tile-128-fg); font-size: clamp(0.85rem, 4.5vw, 1.5rem); }
+  .tile[data-value="256"] { background: var(--tile-256-bg); color: var(--tile-256-fg); font-size: clamp(0.85rem, 4.5vw, 1.5rem); }
+  .tile[data-value="512"] { background: var(--tile-512-bg); color: var(--tile-512-fg); font-size: clamp(0.85rem, 4.5vw, 1.5rem); }
+  .tile[data-value="1024"] { background: var(--tile-1024-bg); color: var(--tile-1024-fg); font-size: clamp(0.75rem, 4vw, 1.3rem); }
+  .tile[data-value="2048"] { background: var(--tile-2048-bg); color: var(--tile-2048-fg); font-size: clamp(0.75rem, 4vw, 1.3rem); box-shadow: 0 0 20px rgba(237,194,46,0.6); }
+  .tile.super { background: var(--tile-super-bg); color: var(--tile-super-fg); font-size: clamp(0.7rem, 3.5vw, 1.2rem); }
+
+  .tile.spawn { animation: spawnIn 0.22s ease; }
+  @keyframes spawnIn {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .tile.merge { animation: mergePop 0.22s ease; z-index: 10; }
+  @keyframes mergePop {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+
+  /* ---- Overlay ---- */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15,15,26,0.92);
+    border-radius: 14px;
+    padding: 1.5rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    text-align: center;
+    backdrop-filter: blur(4px);
+    z-index: 20;
+  }
+  .overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .overlay h2 {
+    font-size: clamp(1.5rem, 7vw, 2.2rem);
+    font-weight: 800;
+    margin-bottom: 0.4rem;
+    background: linear-gradient(135deg, var(--accent), #f67c5f);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .overlay .sub {
+    font-size: 0.9rem;
+    opacity: 0.85;
+    margin-bottom: 1.2rem;
+    line-height: 1.5;
+  }
+  .overlay .actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .big-btn {
+    background: var(--accent);
+    color: #2d2d2d;
+    border: none;
+    padding: 0.7rem 1.5rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.25);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .big-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 rgba(0,0,0,0.25); }
+  .big-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.25); }
+  .big-btn.secondary {
+    background: rgba(255,255,255,0.15);
+    color: var(--text);
+  }
+
+  .controls-hint {
+    margin-top: 0.85rem;
+    font-size: 0.75rem;
+    opacity: 0.6;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  /* ---- Mobile d-pad ---- */
+  .dpad {
+    display: none;
+    width: 180px;
+    height: 180px;
+    margin-top: 1rem;
+    position: relative;
+  }
+  @media (max-width: 720px), (pointer: coarse) {
+    .dpad { display: block; }
+    .controls-hint { display: none; }
+  }
+  .dpad-btn {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.18);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 1.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, transform 0.1s;
+    font-family: inherit;
+  }
+  .dpad-btn:active {
+    background: rgba(255,255,255,0.2);
+    transform: scale(0.92);
+  }
+  .dpad-up    { top: 0;    left: 60px; }
+  .dpad-down  { bottom: 0; left: 60px; }
+  .dpad-left  { top: 60px; left: 0; }
+  .dpad-right { top: 60px; right: 0; }
+
+  /* ========== THEME PICKER MODAL ========== */
+  .t5-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 8, 18, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 0.75rem;
+  }
+  .t5-modal.show { display: flex; }
+  .t5-panel {
+    background: #1a1a2e;
+    border: 2px solid rgba(237, 194, 46, 0.4);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 92dvh;
+    display: flex;
+    flex-direction: column;
+    color: var(--text);
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+  .t5-header {
+    padding: 0.85rem 1rem;
+    background: #0f0f1e;
+    border-bottom: 2px solid rgba(237, 194, 46, 0.25);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .t5-header h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+  .t5-tools { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+  .t5-tools input {
+    padding: 0.4rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    border: 1px solid rgba(237, 194, 46, 0.3);
+    border-radius: 6px;
+    background: #0a0a18;
+    color: var(--text);
+    width: 160px;
+    outline: none;
+  }
+  .t5-tools input:focus { border-color: var(--accent); }
+  .t5-close {
+    padding: 0.4rem 0.85rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    background: var(--accent);
+    color: #2d2d2d;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .t5-cats {
+    padding: 0.55rem 0.85rem;
+    background: #0a0a18;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    overflow-x: auto;
+  }
+  .t5-cat-btn {
+    padding: 0.32rem 0.7rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .t5-cat-btn.active {
+    background: var(--accent);
+    color: #2d2d2d;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+  .t5-grid {
+    overflow-y: auto;
+    padding: 0.7rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.55rem;
+    flex: 1;
+    background: #0a0a18;
+  }
+  .t5-card {
+    background: #1a1a2e;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    padding: 0.55rem;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.12s, background 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .t5-card:hover { transform: translateY(-2px); background: #232342; }
+  .t5-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(237, 194, 46, 0.3);
+  }
+  .t5-preview {
+    border-radius: 6px;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+  }
+  .t5-preview .seg {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+  }
+  .t5-card .name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .t5-card .cat {
+    font-size: 0.6rem;
+    opacity: 0.65;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .t5-card .badge-active {
+    display: inline-block;
+    margin-top: 0.2rem;
+    background: var(--accent);
+    color: #2d2d2d;
+    font-size: 0.6rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-weight: 800;
+    align-self: flex-start;
+  }
+  .t5-foot {
+    padding: 0.5rem 0.95rem;
+    font-size: 0.7rem;
+    opacity: 0.65;
+    text-align: center;
+    background: #0a0a18;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  @media (max-width: 480px) {
+    .t5-tools input { width: 110px; }
+    .t5-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+  <a href="../index.html" style="position:fixed;top:0.5rem;left:0.5rem;color:inherit;text-decoration:none;font-size:0.78rem;opacity:0.75;background:rgba(0,0,0,0.4);padding:4px 9px;border-radius:6px;z-index:9999;font-family:Poppins,sans-serif">← Kembali</a>
+  <div class="top-bar">
+    <div class="logo">2048</div>
+    <div class="top-controls">
+      <button class="icon-btn" id="themeBtn" aria-label="Ganti tema" title="Ganti tema warna">🎨</button>
+      <button class="icon-btn" id="soundBtn" aria-label="Matikan suara" aria-pressed="true">🔊</button>
+      <button class="icon-btn" id="undoBtn" aria-label="Undo" title="Undo (Z)" disabled>↶</button>
+      <button class="icon-btn" id="resetBtn" aria-label="Mulai ulang" title="Ulang (R)">↺</button>
+    </div>
+  </div>
+
+  <div class="stats" style="grid-template-columns: repeat(4, 1fr) !important">
+    <div class="stat" style="position:relative">
+      <div class="stat-label">Skor</div>
+      <div class="stat-value" id="score">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Rekor</div>
+      <div class="stat-value high" id="best">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Langkah</div>
+      <div class="stat-value" id="moves" style="font-size:1.1rem">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Waktu</div>
+      <div class="stat-value" id="timeEl" style="font-size:1.1rem">0:00</div>
+    </div>
+  </div>
+  <div class="size-picker" style="display:flex;gap:4px;background:rgba(0,0,0,0.25);border:1px solid var(--border);padding:3px;border-radius:999px;margin-bottom:0.5rem;width:100%;max-width:420px">
+    <span style="padding:6px 10px;font-size:0.7rem;color:var(--text-muted);font-weight:600">Grid</span>
+    <button class="size-btn active" data-size="4" style="flex:1;background:var(--accent);color:#2d2d2d;border:none;padding:6px;border-radius:999px;font-family:inherit;font-weight:700;font-size:0.78rem;cursor:pointer">4×4</button>
+    <button class="size-btn" data-size="5" style="flex:1;background:transparent;color:var(--text);border:none;padding:6px;border-radius:999px;font-family:inherit;font-weight:700;font-size:0.78rem;cursor:pointer">5×5</button>
+    <button class="size-btn" data-size="6" style="flex:1;background:transparent;color:var(--text);border:none;padding:6px;border-radius:999px;font-family:inherit;font-weight:700;font-size:0.78rem;cursor:pointer">6×6</button>
+  </div>
+  <div class="target-picker" style="display:flex;gap:4px;background:rgba(0,0,0,0.25);border:1px solid var(--border);padding:3px;border-radius:999px;margin-bottom:0.5rem;width:100%;max-width:420px">
+    <span style="padding:6px 10px;font-size:0.7rem;color:var(--text-muted);font-weight:600">Target</span>
+    <button class="target-btn" data-target="1024" style="flex:1;background:transparent;color:var(--text);border:none;padding:6px;border-radius:999px;font-family:inherit;font-weight:700;font-size:0.78rem;cursor:pointer">1024</button>
+    <button class="target-btn active" data-target="2048" style="flex:1;background:var(--accent);color:#2d2d2d;border:none;padding:6px;border-radius:999px;font-family:inherit;font-weight:700;font-size:0.78rem;cursor:pointer">2048</button>
+    <button class="target-btn" data-target="4096" style="flex:1;background:transparent;color:var(--text);border:none;padding:6px;border-radius:999px;font-family:inherit;font-weight:700;font-size:0.78rem;cursor:pointer">4096</button>
+    <button class="target-btn" data-target="8192" style="flex:1;background:transparent;color:var(--text);border:none;padding:6px;border-radius:999px;font-family:inherit;font-weight:700;font-size:0.78rem;cursor:pointer">8192</button>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="grid" id="grid"></div>
+      <div class="tile-layer" id="tileLayer"></div>
+      <div class="overlay" id="overlay">
+        <h2 id="overlayTitle">2048</h2>
+        <p class="sub" id="overlaySub">Gabungkan ubin angka.<br>Capai 2048 untuk menang!</p>
+        <div class="actions">
+          <button class="big-btn" id="primaryBtn">Mulai Bermain</button>
+          <button class="big-btn secondary" id="secondaryBtn" style="display:none">Lanjutkan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="controls-hint">Panah / WASD / swipe untuk menggerakkan ubin · Z untuk undo · R untuk ulang</p>
+
+  <div class="dpad" id="dpad" aria-hidden="true">
+    <button class="dpad-btn dpad-up"    data-dir="up">▲</button>
+    <button class="dpad-btn dpad-left"  data-dir="left">◀</button>
+    <button class="dpad-btn dpad-right" data-dir="right">▶</button>
+    <button class="dpad-btn dpad-down"  data-dir="down">▼</button>
+  </div>
+
+  <!-- ============ THEME PICKER MODAL ============ -->
+  <div id="themeModal" class="t5-modal" aria-hidden="true">
+    <div class="t5-panel">
+      <div class="t5-header">
+        <h3>Pilih Tema 2048</h3>
+        <div class="t5-tools">
+          <input id="themeSearch" type="text" placeholder="Cari tema..." />
+          <button class="t5-close" id="themeModalClose">Tutup</button>
+        </div>
+      </div>
+      <div class="t5-cats" id="themeCats"></div>
+      <div class="t5-grid" id="themeGrid"></div>
+      <div class="t5-foot" id="themeCount"></div>
+    </div>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============= CONSTANTS =============
+  const STORAGE_KEY = 'g2048_v1';
+  let SIZE = 4;                 // mutable now: 4 / 5 / 6
+  const MOVE_DURATION = 130; // CSS transition duration in ms
+  const MAX_HISTORY = 5;
+  let WIN_VALUE = 2048;     // mutable: 1024 / 2048 / 4096 / 8192
+
+  // ============= DOM =============
+  const grid = document.getElementById('grid');
+  const tileLayer = document.getElementById('tileLayer');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const movesEl = document.getElementById('moves');
+  const timeEl = document.getElementById('timeEl');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const primaryBtn = document.getElementById('primaryBtn');
+  const secondaryBtn = document.getElementById('secondaryBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const dpad = document.getElementById('dpad');
+  const board = document.getElementById('board');
+
+  // ============= STATE =============
+  let tiles = [];            // [{ id, value, row, col, mergedFrom? }]
+  let cells = [];            // SIZE x SIZE, cells[r][c] = tile object or null
+  let nextTileId = 1;
+  let score = 0;
+  let best = 0;
+  let bestPerSize = { 4: 0, 5: 0, 6: 0 };  // per-grid-size best
+  let moveCount = 0;
+  let startTime = 0;
+  let elapsedSeconds = 0;
+  let timeIntervalId = null;
+  let hasWon = false;       // true after reaching 2048
+  let keepPlaying = false;  // true if user chose to continue past win
+  let gameOver = false;
+  let animating = false;    // true during move animation
+  let moveAnimTimerId = null;  // cleanup timer for move animation
+  let history = [];         // stack of past states for undo
+  let started = false;      // user has interacted (first move made)
+  let soundOn = true;
+  let audioCtx = null;
+
+  // ============= PERSISTENCE =============
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ bestPerSize, SIZE, soundOn, WIN_VALUE }));
+    } catch(e) {}
+  }
+  function loadState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        const validInt = (v) => (typeof v === 'number' && v >= 0 && isFinite(v)) ? Math.floor(v) : 0;
+        if (data.bestPerSize && typeof data.bestPerSize === 'object' && !Array.isArray(data.bestPerSize)) {
+          bestPerSize = {
+            4: validInt(data.bestPerSize[4]),
+            5: validInt(data.bestPerSize[5]),
+            6: validInt(data.bestPerSize[6])
+          };
+        } else if (typeof data.best === 'number') {
+          // Migrate from old single-best storage
+          bestPerSize = { 4: validInt(data.best), 5: 0, 6: 0 };
+        }
+        if ([4, 5, 6].includes(data.SIZE)) SIZE = data.SIZE;
+        if ([1024, 2048, 4096, 8192].includes(data.WIN_VALUE)) WIN_VALUE = data.WIN_VALUE;
+        best = bestPerSize[SIZE] || 0;
+        soundOn = data.soundOn !== false;
+      }
+    } catch(e) {}
+  }
+
+  // ============= SOUND =============
+  function ensureAudio() {
+    if (!soundOn) return false;
+    if (!audioCtx || audioCtx.state === 'closed') {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return false; }
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+    return true;
+  }
+  function playSound(type, opts) {
+    if (!ensureAudio()) return;
+    opts = opts || {};
+    const t = audioCtx.currentTime;
+    if (type === 'move') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(180, t);
+      g.gain.setValueAtTime(0.05, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.07);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.08);
+    } else if (type === 'merge') {
+      // Higher pitch for bigger merges
+      const pitch = Math.min(880, 220 + (opts.value || 0) * 0.3);
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(pitch, t);
+      o.frequency.exponentialRampToValueAtTime(pitch * 1.6, t + 0.1);
+      g.gain.setValueAtTime(0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.16);
+    } else if (type === 'win') {
+      [523, 659, 784, 1046, 1318].forEach((f, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(f, t + i * 0.08);
+        g.gain.setValueAtTime(0.12, t + i * 0.08);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.08 + 0.3);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.32);
+      });
+    } else if (type === 'over') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(260, t);
+      o.frequency.exponentialRampToValueAtTime(80, t + 0.6);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.62);
+    } else if (type === 'undo') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(500, t);
+      o.frequency.exponentialRampToValueAtTime(280, t + 0.12);
+      g.gain.setValueAtTime(0.08, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.13);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.14);
+    }
+  }
+
+  // ============= GRID & TILES =============
+  function buildBackgroundGrid() {
+    grid.innerHTML = '';
+    grid.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+    grid.style.gridTemplateRows = `repeat(${SIZE}, 1fr)`;
+    // Update --cells CSS variable so tile sizing computes correctly
+    const board = document.getElementById('board');
+    if (board) board.style.setProperty('--cells', SIZE);
+    for (let i = 0; i < SIZE * SIZE; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      grid.appendChild(slot);
+    }
+  }
+
+  function emptyCells() {
+    const empty = [];
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (!cells[r][c]) empty.push({ r, c });
+      }
+    }
+    return empty;
+  }
+
+  function spawnTile() {
+    const empty = emptyCells();
+    if (empty.length === 0) return null;
+    const { r, c } = empty[Math.floor(Math.random() * empty.length)];
+    const value = Math.random() < 0.9 ? 2 : 4;
+    const tile = { id: nextTileId++, value, row: r, col: c, isNew: true };
+    tiles.push(tile);
+    cells[r][c] = tile;
+    return tile;
+  }
+
+  function resetGameState() {
+    if (moveAnimTimerId) { clearTimeout(moveAnimTimerId); moveAnimTimerId = null; }
+    if (timeIntervalId) { clearInterval(timeIntervalId); timeIntervalId = null; }
+    tiles = [];
+    cells = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+    nextTileId = 1;
+    score = 0;
+    moveCount = 0;
+    startTime = 0;
+    elapsedSeconds = 0;
+    best = bestPerSize[SIZE] || 0;
+    hasWon = false;
+    keepPlaying = false;
+    gameOver = false;
+    animating = false;
+    history = [];
+    started = false;
+    tileLayer.innerHTML = '';
+    updateUI();
+    updateUndoButton();
+  }
+
+  function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${String(sec).padStart(2, '0')}`;
+  }
+  function startTimer() {
+    startTime = Date.now();
+    timeIntervalId = setInterval(() => {
+      if (gameOver || !started) return;
+      elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      timeEl.textContent = formatTime(elapsedSeconds);
+    }, 1000);
+  }
+
+  // Target picker (win value)
+  document.querySelectorAll('.target-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const newTarget = parseInt(btn.dataset.target);
+      if (![1024, 2048, 4096, 8192].includes(newTarget)) return;
+      if (newTarget === WIN_VALUE) return;
+      if (started && score > 0 && !gameOver) {
+        if (!confirm('Ganti target? Permainan saat ini akan dimulai ulang.')) return;
+      }
+      WIN_VALUE = newTarget;
+      saveState();
+      document.querySelectorAll('.target-btn').forEach(b => {
+        const active = b === btn;
+        b.classList.toggle('active', active);
+        b.style.background = active ? 'var(--accent)' : 'transparent';
+        b.style.color = active ? '#2d2d2d' : 'var(--text)';
+      });
+      startNewGame();
+    });
+  });
+
+  // Size picker event handlers
+  document.querySelectorAll('.size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const newSize = parseInt(btn.dataset.size);
+      if (![4, 5, 6].includes(newSize)) return;
+      if (newSize === SIZE) return;
+      // Confirm if game has progress
+      if (started && score > 0 && !gameOver) {
+        if (!confirm('Ganti ukuran grid? Permainan saat ini akan hilang.')) return;
+      }
+      SIZE = newSize;
+      saveState();
+      document.querySelectorAll('.size-btn').forEach(b => {
+        const active = b === btn;
+        b.classList.toggle('active', active);
+        b.style.background = active ? 'var(--accent)' : 'transparent';
+        b.style.color = active ? '#2d2d2d' : 'var(--text)';
+      });
+      buildBackgroundGrid();
+      startNewGame();
+    });
+  });
+
+  function startNewGame() {
+    resetGameState();
+    spawnTile();
+    spawnTile();
+    render(true);
+    overlay.classList.remove('show');
+    secondaryBtn.style.display = 'none';
+    primaryBtn.textContent = 'Mulai Bermain';
+  }
+
+  // ============= MOVE LOGIC =============
+  // Direction encoding: 0=up, 1=right, 2=down, 3=left
+  function vectorFor(dir) {
+    return [[-1,0],[0,1],[1,0],[0,-1]][dir];
+  }
+  // Order tiles must be processed (so they don't block each other).
+  // Iterate based on dynamic SIZE so 5x5 and 6x6 grids work correctly.
+  function traversalFor(dir) {
+    const order = [];
+    const [dy, dx] = vectorFor(dir);
+    const ascending = [];
+    for (let i = 0; i < SIZE; i++) ascending.push(i);
+    const descending = ascending.slice().reverse();
+    // Process from the FAR side (in the direction of motion) so leading tiles move first
+    const rowOrder = dy === 1 ? descending : ascending;
+    const colOrder = dx === 1 ? descending : ascending;
+    for (const r of rowOrder) {
+      for (const c of colOrder) {
+        order.push({ r, c });
+      }
+    }
+    return order;
+  }
+
+  function move(dir) {
+    if (animating) return;
+    if (gameOver) return;
+
+    // Save state for undo BEFORE we mutate
+    saveHistoryEntry();
+
+    const [dy, dx] = vectorFor(dir);
+    const order = traversalFor(dir);
+
+    // Reset per-move flags
+    tiles.forEach(t => { t.mergedFromId = null; t.toRemove = false; });
+
+    let moved = false;
+    let scoreGain = 0;
+    let highestMerge = 0;
+
+    for (const { r, c } of order) {
+      const tile = cells[r][c];
+      if (!tile) continue;
+
+      // Find farthest empty position in direction
+      let nr = r, nc = c;
+      while (true) {
+        const fr = nr + dy, fc = nc + dx;
+        if (fr < 0 || fr >= SIZE || fc < 0 || fc >= SIZE) break;
+        if (cells[fr][fc]) break;
+        nr = fr; nc = fc;
+      }
+
+      // Check if can merge with next cell
+      const mr = nr + dy, mc = nc + dx;
+      let merged = false;
+      if (mr >= 0 && mr < SIZE && mc >= 0 && mc < SIZE) {
+        const other = cells[mr][mc];
+        if (other && other.value === tile.value && !other.mergedFromId) {
+          // Merge: tile slides to (mr, mc) and is absorbed into other.
+          // Other doubles in value.
+          other.value *= 2;
+          other.mergedFromId = tile.id;
+          scoreGain += other.value;
+          if (other.value > highestMerge) highestMerge = other.value;
+          tile.row = mr; tile.col = mc;
+          tile.toRemove = true;
+          cells[r][c] = null;
+          merged = true;
+          moved = true;
+        }
+      }
+
+      if (!merged && (nr !== r || nc !== c)) {
+        // Slide without merge
+        cells[r][c] = null;
+        cells[nr][nc] = tile;
+        tile.row = nr;
+        tile.col = nc;
+        moved = true;
+      }
+    }
+
+    if (!moved) {
+      // Undo the history save since nothing changed
+      history.pop();
+      return;
+    }
+    // Bump move counter and start timer on first move
+    moveCount++;
+    if (!startTime) startTimer();
+    movesEl.textContent = moveCount;
+
+    started = true;
+    animating = true;
+    score += scoreGain;
+    if (scoreGain > 0) {
+      playSound('merge', { value: highestMerge });
+      flashScoreDelta(scoreGain);
+      bumpStat(scoreEl);
+    } else {
+      playSound('move');
+    }
+    if (score > best) {
+      best = score;
+      bestPerSize[SIZE] = best;
+      saveState();
+    }
+    updateUI();
+    render(false);
+
+    // After CSS transition completes, clean up merged tiles and spawn new tile.
+    // Track the timer so reset() can cancel it and avoid spawning into the new game.
+    if (moveAnimTimerId) clearTimeout(moveAnimTimerId);
+    moveAnimTimerId = setTimeout(() => {
+      moveAnimTimerId = null;
+      // Remove tiles flagged toRemove
+      tiles = tiles.filter(t => {
+        if (t.toRemove) {
+          const el = document.getElementById('tile-' + t.id);
+          if (el) el.remove();
+          return false;
+        }
+        return true;
+      });
+      // Clear merge flags from receivers (after we've used them for animation)
+      tiles.forEach(t => { t.mergedFromId = null; });
+
+      // Spawn new tile
+      spawnTile();
+      render(false);
+
+      animating = false;
+      updateUndoButton();
+
+      // GameHub: notify tile milestones (used by 2048/4096 achievements + daily challenge "tile 512")
+      if (window.GameHub) {
+        window.GameHub.notify('g5_tile', { tile: maxTileValue(), score });
+      }
+
+      // Check win
+      if (!hasWon && !keepPlaying && maxTileValue() >= WIN_VALUE) {
+        hasWon = true;
+        playSound('win');
+        if (window.GameHub) {
+          window.GameHub.notify('g5_win', { target: WIN_VALUE, score });
+          window.GameHub.notify('game_start', { gameId: 5 });
+          window.GameHub.coins.add(Math.floor(score / 100));
+        }
+        showWinOverlay();
+        return;
+      }
+
+      // Check game over
+      if (!hasMoves()) {
+        gameOver = true;
+        playSound('over');
+        if (window.GameHub) {
+          window.GameHub.notify('g5_gameover', { score });
+          window.GameHub.notify('game_start', { gameId: 5 });
+          window.GameHub.coins.add(Math.floor(score / 100));
+        }
+        showGameOverOverlay();
+      }
+    }, MOVE_DURATION);
+  }
+
+  function maxTileValue() {
+    let max = 0;
+    for (const t of tiles) if (t.value > max) max = t.value;
+    return max;
+  }
+
+  function hasMoves() {
+    // Any empty cell?
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (!cells[r][c]) return true;
+      }
+    }
+    // Any adjacent same-value tiles?
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const t = cells[r][c];
+        if (!t) continue;
+        if (r + 1 < SIZE && cells[r+1][c] && cells[r+1][c].value === t.value) return true;
+        if (c + 1 < SIZE && cells[r][c+1] && cells[r][c+1].value === t.value) return true;
+      }
+    }
+    return false;
+  }
+
+  // ============= HISTORY / UNDO =============
+  function snapshotState() {
+    // Deep clone tiles and cells
+    const tilesCopy = tiles.map(t => ({ id: t.id, value: t.value, row: t.row, col: t.col }));
+    // Re-build cells from cloned tiles
+    const cellsCopy = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+    for (const t of tilesCopy) cellsCopy[t.row][t.col] = t;
+    return {
+      tiles: tilesCopy,
+      cells: cellsCopy,
+      score,
+      nextTileId,
+      hasWon,
+      keepPlaying,
+      gameOver,
+      moveCount,
+      elapsedSeconds
+    };
+  }
+
+  function saveHistoryEntry() {
+    history.push(snapshotState());
+    if (history.length > MAX_HISTORY) history.shift();
+  }
+
+  function undo() {
+    if (animating || history.length === 0) return;
+    const entry = history.pop();
+    // Remove all current tile DOM
+    tileLayer.innerHTML = '';
+    tiles = entry.tiles;
+    cells = entry.cells;
+    score = entry.score;
+    nextTileId = entry.nextTileId;
+    hasWon = entry.hasWon;
+    keepPlaying = entry.keepPlaying;
+    gameOver = entry.gameOver;
+    // Restore moveCount + elapsedSeconds so undo truly reverts state.
+    if (typeof entry.moveCount === 'number') moveCount = entry.moveCount;
+    if (typeof entry.elapsedSeconds === 'number') {
+      elapsedSeconds = entry.elapsedSeconds;
+      // Shift startTime so the running timer continues from the undone elapsed value.
+      if (startTime > 0) startTime = Date.now() - elapsedSeconds * 1000;
+    }
+    playSound('undo');
+    updateUI();
+    render(true);
+    updateUndoButton();
+    // Clear overlay if game-over was shown
+    if (overlay.classList.contains('show') && !gameOver && !(hasWon && !keepPlaying)) {
+      overlay.classList.remove('show');
+    }
+  }
+
+  function updateUndoButton() {
+    undoBtn.disabled = animating || history.length === 0 || gameOver;
+  }
+
+  // ============= RENDERING =============
+  function ensureTileEl(tile, instantPlacement) {
+    let el = document.getElementById('tile-' + tile.id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'tile-' + tile.id;
+      el.className = 'tile';
+      // Set position immediately without transition (for spawn / initial render)
+      el.style.transition = 'none';
+      el.style.setProperty('--row', tile.row);
+      el.style.setProperty('--col', tile.col);
+      el.dataset.value = tile.value;
+      el.textContent = tile.value;
+      if (tile.value > WIN_VALUE) el.classList.add('super');
+      tileLayer.appendChild(el);
+      // Force reflow then restore transition + add spawn anim
+      void el.offsetWidth;
+      el.style.transition = '';
+      if (!instantPlacement) {
+        el.classList.add('spawn');
+        setTimeout(() => el.classList.remove('spawn'), 240);
+      }
+      tile.isNew = false;
+    }
+    return el;
+  }
+
+  function render(instant) {
+    for (const tile of tiles) {
+      const el = ensureTileEl(tile, instant);
+      el.style.setProperty('--row', tile.row);
+      el.style.setProperty('--col', tile.col);
+      // Update value/class only if changed (avoid spurious anims)
+      const newValue = String(tile.value);
+      if (el.dataset.value !== newValue) {
+        el.dataset.value = newValue;
+        el.textContent = newValue;
+        el.classList.toggle('super', tile.value > WIN_VALUE);
+        // Only the merge receiver gets pop animation
+        if (tile.mergedFromId) {
+          // Trigger merge anim after slide completes
+          setTimeout(() => {
+            el.classList.add('merge');
+            setTimeout(() => el.classList.remove('merge'), 240);
+          }, MOVE_DURATION);
+        }
+      }
+    }
+  }
+
+  // ============= UI =============
+  function bumpStat(el) {
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+  function flashScoreDelta(amount) {
+    const parent = scoreEl.parentElement;
+    const span = document.createElement('span');
+    span.className = 'delta';
+    span.textContent = '+' + amount;
+    span.style.right = '8px';
+    span.style.top = '6px';
+    parent.appendChild(span);
+    setTimeout(() => span.remove(), 700);
+  }
+  function updateUI() {
+    scoreEl.textContent = score;
+    bestEl.textContent = best;
+    movesEl.textContent = moveCount;
+    timeEl.textContent = formatTime(elapsedSeconds);
+  }
+  function updateSoundButton() {
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    soundBtn.setAttribute('aria-label', soundOn ? 'Matikan suara' : 'Nyalakan suara');
+    soundBtn.setAttribute('aria-pressed', String(soundOn));
+  }
+
+  function showWinOverlay() {
+    overlayTitle.textContent = 'Kamu Menang! 🎉';
+    overlaySub.innerHTML = `Kamu mencapai <b>${WIN_VALUE}</b>! Skor: <b>${score}</b><br><small style="opacity:0.7">Lanjutkan untuk mengejar nilai lebih tinggi.</small>`;
+    primaryBtn.textContent = 'Lanjutkan';
+    secondaryBtn.textContent = 'Main Baru';
+    secondaryBtn.style.display = '';
+    overlay.classList.add('show');
+  }
+
+  function showGameOverOverlay() {
+    overlayTitle.textContent = 'Permainan Berakhir';
+    let sub = `Skor: <b>${score}</b>`;
+    if (score === best && best > 0) sub += `<br><small style="opacity:0.8;color:var(--accent)">⭐ Rekor baru!</small>`;
+    overlaySub.innerHTML = sub;
+    primaryBtn.textContent = 'Main Lagi';
+    secondaryBtn.style.display = 'none';
+    overlay.classList.add('show');
+  }
+
+  // ============= INPUT =============
+  // Map directions: up=0, right=1, down=2, left=3
+  function moveDir(name) {
+    if (name === 'up') move(0);
+    else if (name === 'right') move(1);
+    else if (name === 'down') move(2);
+    else if (name === 'left') move(3);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const isButtonFocused = e.target.tagName === 'BUTTON';
+    const isActivationKey = e.key === 'Enter' || e.key === ' ';
+    if (isButtonFocused && isActivationKey) return;
+
+    const k = e.key;
+    if (k === 'ArrowUp' || k === 'w' || k === 'W') { e.preventDefault(); moveDir('up'); }
+    else if (k === 'ArrowDown' || k === 's' || k === 'S') { e.preventDefault(); moveDir('down'); }
+    else if (k === 'ArrowLeft' || k === 'a' || k === 'A') { e.preventDefault(); moveDir('left'); }
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') { e.preventDefault(); moveDir('right'); }
+    else if (k === 'z' || k === 'Z') { e.preventDefault(); undo(); }
+    else if (k === 'r' || k === 'R') { e.preventDefault(); startNewGame(); }
+    else if (k === 'Enter') {
+      if (overlay.classList.contains('show')) {
+        e.preventDefault();
+        primaryBtn.click();
+      }
+    }
+  });
+
+  // Touch / swipe
+  let touchStart = null;
+  board.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+  }, { passive: true });
+
+  board.addEventListener('touchend', (e) => {
+    if (!touchStart) return;
+    const touch = e.changedTouches && e.changedTouches[0];
+    if (!touch) { touchStart = null; return; }
+    const dx = touch.clientX - touchStart.x;
+    const dy = touch.clientY - touchStart.y;
+    touchStart = null;
+    const minDist = 24;
+    if (Math.abs(dx) < minDist && Math.abs(dy) < minDist) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      moveDir(dx > 0 ? 'right' : 'left');
+    } else {
+      moveDir(dy > 0 ? 'down' : 'up');
+    }
+  });
+
+  board.addEventListener('touchcancel', () => { touchStart = null; });
+
+  // D-pad
+  dpad.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dpad-btn');
+    if (!btn) return;
+    const dir = btn.dataset.dir;
+    if (['up','down','left','right'].includes(dir)) moveDir(dir);
+  });
+
+  // Button events
+  primaryBtn.addEventListener('click', () => {
+    if (gameOver) {
+      startNewGame();
+    } else if (hasWon && !keepPlaying) {
+      // Continue playing past 2048
+      keepPlaying = true;
+      overlay.classList.remove('show');
+      secondaryBtn.style.display = 'none';
+    } else {
+      startNewGame();
+    }
+  });
+  secondaryBtn.addEventListener('click', () => {
+    startNewGame();
+  });
+  resetBtn.addEventListener('click', () => {
+    // Confirm only if there's meaningful progress
+    if (started && !gameOver && score > 0) {
+      if (!confirm('Mulai permainan baru? Permainan saat ini akan dihapus.')) return;
+    }
+    startNewGame();
+  });
+  undoBtn.addEventListener('click', undo);
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    updateSoundButton();
+    saveState();
+    if (soundOn) ensureAudio();
+  });
+
+  // Pause-aware timer: freeze elapsed when tab hidden, resume on return.
+  let tabHiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (startTime > 0) {
+        // Capture how long we were running and freeze
+        tabHiddenAt = Date.now();
+        if (timeIntervalId) { clearInterval(timeIntervalId); timeIntervalId = null; }
+      }
+    } else {
+      if (startTime > 0 && tabHiddenAt > 0) {
+        // Shift startTime forward by hidden duration so elapsed doesn't jump
+        const hiddenDuration = Date.now() - tabHiddenAt;
+        startTime += hiddenDuration;
+        tabHiddenAt = 0;
+        // Restart interval if game still active
+        if (!gameOver) {
+          timeIntervalId = setInterval(() => {
+            elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+            timeEl.textContent = formatTime(elapsedSeconds);
+          }, 250);
+        }
+      }
+    }
+  });
+
+  // Pause audio when tab hidden
+  document.addEventListener('visibilitychange', () => {
+    if (!audioCtx) return;
+    if (document.hidden && audioCtx.state === 'running') {
+      audioCtx.suspend().catch(() => {});
+    } else if (!document.hidden && audioCtx.state === 'suspended' && soundOn) {
+      audioCtx.resume().catch(() => {});
+    }
+  });
+
+  // ============= THEMES (50) =============
+  // Helper: linear interpolation between two #RRGGBB hex colors.
+  function lerpHex(a, b, t) {
+    const pa = { r: parseInt(a.slice(1,3),16), g: parseInt(a.slice(3,5),16), bl: parseInt(a.slice(5,7),16) };
+    const pb = { r: parseInt(b.slice(1,3),16), g: parseInt(b.slice(3,5),16), bl: parseInt(b.slice(5,7),16) };
+    const r = Math.round(pa.r + (pb.r - pa.r) * t);
+    const g = Math.round(pa.g + (pb.g - pa.g) * t);
+    const bl = Math.round(pa.bl + (pb.bl - pa.bl) * t);
+    return '#' + [r, g, bl].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+  // Build 12-color gradient between two anchor hex colors.
+  function grad(start, end, count = 12) {
+    const out = [];
+    for (let i = 0; i < count; i++) out.push(lerpHex(start, end, count > 1 ? i / (count - 1) : 0));
+    return out;
+  }
+  // Multi-stop gradient: stops = [{hex, pos: 0..1}, ...]
+  function multiGrad(stops, count = 12) {
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const t = count > 1 ? i / (count - 1) : 0;
+      // Find the segment
+      let s0 = stops[0], s1 = stops[stops.length - 1];
+      for (let k = 0; k < stops.length - 1; k++) {
+        if (t >= stops[k].pos && t <= stops[k + 1].pos) {
+          s0 = stops[k]; s1 = stops[k + 1];
+          break;
+        }
+      }
+      const range = s1.pos - s0.pos || 1;
+      const local = (t - s0.pos) / range;
+      out.push(lerpHex(s0.hex, s1.hex, Math.max(0, Math.min(1, local))));
+    }
+    return out;
+  }
+  // Compute readable fg (#000 or #fff) from bg hex using luminance.
+  function fgFor(bg) {
+    const r = parseInt(bg.slice(1,3),16) / 255;
+    const g = parseInt(bg.slice(3,5),16) / 255;
+    const b = parseInt(bg.slice(5,7),16) / 255;
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return lum > 0.55 ? '#2d2d2d' : '#ffffff';
+  }
+
+  const THEMES = [
+    // ---- Klasik ----
+    { name: 'Klasik',         cat: 'Klasik',    board: '#1a1a2e', colors: ['#eee4da','#ede0c8','#f2b179','#f59563','#f67c5f','#f65e3b','#edcf72','#edcc61','#edc850','#edc53f','#edc22e','#3c3a32'] },
+    { name: 'Klasik Terang',  cat: 'Klasik',    board: '#faf8ef', colors: ['#eee4da','#ede0c8','#f2b179','#f59563','#f67c5f','#f65e3b','#edcf72','#edcc61','#edc850','#edc53f','#edc22e','#3c3a32'] },
+    { name: 'Vivid',          cat: 'Klasik',    board: '#0a0a14', colors: multiGrad([{hex:'#00e5ff',pos:0},{hex:'#ffea00',pos:0.5},{hex:'#ff1744',pos:1}]) },
+
+    // ---- Element ----
+    { name: 'Api',            cat: 'Element',   board: '#1a0500', colors: multiGrad([{hex:'#ffeb3b',pos:0},{hex:'#ff9100',pos:0.5},{hex:'#bf360c',pos:1}]) },
+    { name: 'Air',            cat: 'Element',   board: '#001a2e', colors: grad('#b3e5fc','#01579b') },
+    { name: 'Es',             cat: 'Element',   board: '#0a1f2e', colors: grad('#e0f7fa','#0288d1') },
+    { name: 'Petir',          cat: 'Element',   board: '#1a1500', colors: multiGrad([{hex:'#fff59d',pos:0},{hex:'#ffd600',pos:0.5},{hex:'#f57f17',pos:1}]) },
+    { name: 'Hutan',          cat: 'Element',   board: '#0d1f0d', colors: multiGrad([{hex:'#c5e1a5',pos:0},{hex:'#66bb6a',pos:0.5},{hex:'#1b5e20',pos:1}]) },
+    { name: 'Logam',          cat: 'Element',   board: '#1a1a1a', colors: grad('#eceff1','#37474f') },
+
+    // ---- Permata ----
+    { name: 'Diamond',        cat: 'Permata',   board: '#1a2238', colors: grad('#e0f7fa','#0277bd') },
+    { name: 'Ruby',           cat: 'Permata',   board: '#2e0a14', colors: multiGrad([{hex:'#ffcdd2',pos:0},{hex:'#ef5350',pos:0.5},{hex:'#b71c1c',pos:1}]) },
+    { name: 'Emerald',        cat: 'Permata',   board: '#0a2e1a', colors: multiGrad([{hex:'#c8e6c9',pos:0},{hex:'#43a047',pos:0.5},{hex:'#1b5e20',pos:1}]) },
+    { name: 'Sapphire',       cat: 'Permata',   board: '#0a142e', colors: multiGrad([{hex:'#bbdefb',pos:0},{hex:'#1976d2',pos:0.5},{hex:'#0d47a1',pos:1}]) },
+    { name: 'Topaz',          cat: 'Permata',   board: '#2e2308', colors: multiGrad([{hex:'#fff9c4',pos:0},{hex:'#ffd54f',pos:0.5},{hex:'#f57f17',pos:1}]) },
+    { name: 'Amethyst',       cat: 'Permata',   board: '#1f0a2e', colors: multiGrad([{hex:'#e1bee7',pos:0},{hex:'#9c27b0',pos:0.5},{hex:'#4a148c',pos:1}]) },
+    { name: 'Onyx',           cat: 'Permata',   board: '#0a0a0a', colors: grad('#cfd8dc','#263238') },
+    { name: 'Mutiara',        cat: 'Permata',   board: '#1f2933', colors: multiGrad([{hex:'#ffffff',pos:0},{hex:'#f0e6ff',pos:0.4},{hex:'#b39ddb',pos:1}]) },
+
+    // ---- Neon ----
+    { name: 'Cyberpunk',      cat: 'Neon',      board: '#0d0221', colors: multiGrad([{hex:'#00f5ff',pos:0},{hex:'#ff00ff',pos:0.4},{hex:'#ff0040',pos:0.8},{hex:'#39ff14',pos:1}]) },
+    { name: 'Matrix',         cat: 'Neon',      board: '#001500', colors: grad('#a0ffa0','#003300') },
+    { name: 'Sunset Neon',    cat: 'Neon',      board: '#2a0845', colors: multiGrad([{hex:'#ffd166',pos:0},{hex:'#ef476f',pos:0.5},{hex:'#7209b7',pos:1}]) },
+    { name: 'Vapor Wave',     cat: 'Neon',      board: '#1a0033', colors: multiGrad([{hex:'#00f0ff',pos:0},{hex:'#ff00ff',pos:0.5},{hex:'#ff0066',pos:1}]) },
+    { name: 'Tron',           cat: 'Neon',      board: '#001020', colors: grad('#a0e8ff','#0044cc') },
+    { name: 'Acid',           cat: 'Neon',      board: '#0d1f00', colors: multiGrad([{hex:'#eeff00',pos:0},{hex:'#aaff00',pos:0.5},{hex:'#22ff00',pos:1}]) },
+
+    // ---- Pastel ----
+    { name: 'Mint',           cat: 'Pastel',    board: '#1f2e2a', colors: grad('#e0f7fa','#80cbc4') },
+    { name: 'Peach',          cat: 'Pastel',    board: '#2d201f', colors: grad('#ffe0b2','#ff8a65') },
+    { name: 'Lavender',       cat: 'Pastel',    board: '#251f33', colors: grad('#ede7f6','#9575cd') },
+    { name: 'Rose',           cat: 'Pastel',    board: '#2e1f24', colors: grad('#fce4ec','#e91e63') },
+    { name: 'Sky Pastel',     cat: 'Pastel',    board: '#1c2733', colors: grad('#e1f5fe','#42a5f5') },
+
+    // ---- Retro ----
+    { name: '8-bit',          cat: 'Retro',     board: '#0f0f1e', colors: ['#3498db','#27ae60','#f1c40f','#e67e22','#e74c3c','#9b59b6','#1abc9c','#2ecc71','#f39c12','#d35400','#c0392b','#8e44ad'] },
+    { name: 'Gameboy',        cat: 'Retro',     board: '#0f380f', colors: grad('#9bbc0f','#0f380f') },
+    { name: 'NES Pink',       cat: 'Retro',     board: '#1a0a1a', colors: ['#ff7ab6','#ffce00','#a259ff','#73d216','#cc0000','#f57900','#3465a4','#75507b','#c17d11','#4e9a06','#a40000','#5c3566'] },
+    { name: 'Commodore 64',   cat: 'Retro',     board: '#352879', colors: ['#6f4f25','#b8c76f','#7e70ca','#6abfc6','#9a5236','#cb7e75','#787878','#9a9a9a','#bfbfbf','#404040','#e0e0e0','#352879'] },
+    { name: 'Arcade',         cat: 'Retro',     board: '#000000', colors: ['#ff0000','#ff8800','#ffff00','#00ff00','#00ffff','#0000ff','#ff00ff','#ff0088','#88ff00','#0088ff','#8800ff','#ffffff'] },
+
+    // ---- Tema ----
+    { name: 'Galaxy',         cat: 'Tema',      board: '#0a0014', colors: multiGrad([{hex:'#7c4dff',pos:0},{hex:'#e040fb',pos:0.4},{hex:'#ff4081',pos:0.7},{hex:'#ffd54f',pos:1}]) },
+    { name: 'Sakura',         cat: 'Tema',      board: '#2e1525', colors: multiGrad([{hex:'#ffb7c5',pos:0},{hex:'#f48fb1',pos:0.5},{hex:'#ad1457',pos:1}]) },
+    { name: 'Tundra',         cat: 'Tema',      board: '#10242e', colors: grad('#e0f7fa','#37474f') },
+    { name: 'Volcano',        cat: 'Tema',      board: '#1a0808', colors: multiGrad([{hex:'#ffab00',pos:0},{hex:'#ff3d00',pos:0.5},{hex:'#3e2723',pos:1}]) },
+    { name: 'Laut',           cat: 'Tema',      board: '#001f3f', colors: multiGrad([{hex:'#b2ebf2',pos:0},{hex:'#00bcd4',pos:0.5},{hex:'#01579b',pos:1}]) },
+    { name: 'Padang Pasir',   cat: 'Tema',      board: '#2a1f0e', colors: multiGrad([{hex:'#fff3e0',pos:0},{hex:'#ffb74d',pos:0.5},{hex:'#5d4037',pos:1}]) },
+    { name: 'Tropis',         cat: 'Tema',      board: '#0d2a1f', colors: multiGrad([{hex:'#ffeb3b',pos:0},{hex:'#76ff03',pos:0.4},{hex:'#00bfa5',pos:0.8},{hex:'#ff4081',pos:1}]) },
+    { name: 'Forest Night',   cat: 'Tema',      board: '#0a0f0a', colors: multiGrad([{hex:'#b9f6ca',pos:0},{hex:'#43a047',pos:0.4},{hex:'#1b5e20',pos:0.8},{hex:'#1a1a1a',pos:1}]) },
+
+    // ---- Indonesia ----
+    { name: 'Merah Putih',    cat: 'Indonesia', board: '#1a0808', colors: ['#ffffff','#ffcdd2','#ef9a9a','#e57373','#ef5350','#f44336','#e53935','#d32f2f','#c62828','#b71c1c','#8d0000','#5f0000'] },
+    { name: 'Batik',          cat: 'Indonesia', board: '#1a1208', colors: ['#fff8e7','#f5d0a9','#deb887','#cd853f','#a0522d','#8d6e63','#795548','#6d4c41','#5d4037','#4e342e','#3e2723','#1a0d04'] },
+    { name: 'Garuda',         cat: 'Indonesia', board: '#1a1208', colors: multiGrad([{hex:'#fff8e1',pos:0},{hex:'#ffd600',pos:0.4},{hex:'#ff8f00',pos:0.7},{hex:'#3e2723',pos:1}]) },
+    { name: 'Nusantara',      cat: 'Indonesia', board: '#0d1f2e', colors: ['#00b0ff','#26c6da','#4dd0e1','#ffd54f','#ffb74d','#ff8a65','#66bb6a','#43a047','#ef5350','#e53935','#5c6bc0','#3949ab'] },
+
+    // ---- Mono ----
+    { name: 'Mono Biru',      cat: 'Mono',      board: '#0a1929', colors: grad('#bbdefb','#0d47a1') },
+    { name: 'Mono Hijau',     cat: 'Mono',      board: '#0d1f0d', colors: grad('#c8e6c9','#1b5e20') },
+    { name: 'Mono Merah',     cat: 'Mono',      board: '#1a0808', colors: grad('#ffcdd2','#b71c1c') },
+    { name: 'Mono Ungu',      cat: 'Mono',      board: '#1a0e25', colors: grad('#e1bee7','#4a148c') },
+    { name: 'Mono Emas',      cat: 'Mono',      board: '#2a2308', colors: grad('#fff8e1','#e65100') }
+  ];
+
+  let currentThemeIdx = 0;
+  function applyTheme() {
+    const t = THEMES[currentThemeIdx] || THEMES[0];
+    const cs = t.colors;
+    const root = document.documentElement;
+    const tags = ['2','4','8','16','32','64','128','256','512','1024','2048'];
+    for (let i = 0; i < tags.length; i++) {
+      const bg = cs[i] || cs[cs.length - 1];
+      root.style.setProperty('--tile-' + tags[i] + '-bg', bg);
+      root.style.setProperty('--tile-' + tags[i] + '-fg', fgFor(bg));
+    }
+    // Super tile (>= 4096)
+    const superBg = cs[11] || cs[cs.length - 1];
+    root.style.setProperty('--tile-super-bg', superBg);
+    root.style.setProperty('--tile-super-fg', fgFor(superBg));
+    if (t.board) root.style.setProperty('--board-bg', t.board);
+  }
+
+  // Extend save/load to remember the chosen theme. Wrap the existing functions.
+  const _origSave = saveState;
+  saveState = function() {
+    _origSave();
+    // Also persist theme idx in a dedicated key so we don't conflict with main state schema.
+    try { localStorage.setItem(STORAGE_KEY + '_theme', String(currentThemeIdx)); } catch(e) {}
+  };
+  function loadTheme() {
+    try {
+      const v = parseInt(localStorage.getItem(STORAGE_KEY + '_theme'));
+      if (Number.isInteger(v) && v >= 0 && v < THEMES.length) currentThemeIdx = v;
+    } catch(e) {}
+  }
+
+  // ============= THEME PICKER UI =============
+  const themeModal     = document.getElementById('themeModal');
+  const themeGridEl    = document.getElementById('themeGrid');
+  const themeCatsEl    = document.getElementById('themeCats');
+  const themeSearchEl  = document.getElementById('themeSearch');
+  const themeCountEl   = document.getElementById('themeCount');
+  const themeBtnEl     = document.getElementById('themeBtn');
+  const themeCloseBtn  = document.getElementById('themeModalClose');
+  let themeCatFilter = 'Semua';
+
+  function escapeHtml5(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    })[c]);
+  }
+  function renderThemeCats() {
+    const cats = ['Semua'];
+    for (const t of THEMES) if (!cats.includes(t.cat)) cats.push(t.cat);
+    themeCatsEl.innerHTML = '';
+    for (const c of cats) {
+      const b = document.createElement('button');
+      b.className = 't5-cat-btn' + (c === themeCatFilter ? ' active' : '');
+      b.textContent = c;
+      b.addEventListener('click', () => {
+        themeCatFilter = c;
+        renderThemeCats();
+        renderThemeGrid();
+      });
+      themeCatsEl.appendChild(b);
+    }
+  }
+  function renderThemeGrid() {
+    const q = (themeSearchEl.value || '').trim().toLowerCase();
+    themeGridEl.innerHTML = '';
+    let shown = 0;
+    THEMES.forEach((t, i) => {
+      if (themeCatFilter !== 'Semua' && t.cat !== themeCatFilter) return;
+      if (q && !(t.name.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q))) return;
+      shown++;
+      const card = document.createElement('div');
+      card.className = 't5-card' + (i === currentThemeIdx ? ' selected' : '');
+      card.tabIndex = 0;
+      // Preview: 6 segments showing color progression at indices 0,2,4,6,8,10
+      const idxs = [0, 2, 4, 6, 8, 10];
+      const previewSegs = idxs.map(j => `<div class="seg" style="background:${t.colors[j]}"></div>`).join('');
+      card.innerHTML = `
+        <div class="t5-preview" style="background:${t.board || '#1a1a2e'}">${previewSegs}</div>
+        <div class="name">${escapeHtml5(t.name)}</div>
+        <div class="cat">${escapeHtml5(t.cat)}</div>
+        ${i === currentThemeIdx ? '<span class="badge-active">Aktif</span>' : ''}
+      `;
+      const choose = () => {
+        currentThemeIdx = i;
+        applyTheme();
+        saveState();
+        renderThemeGrid();
+      };
+      card.addEventListener('click', choose);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+      });
+      themeGridEl.appendChild(card);
+    });
+    themeCountEl.textContent = `Menampilkan ${shown} dari ${THEMES.length} tema`;
+  }
+  function openThemeModal() {
+    themeSearchEl.value = '';
+    themeCatFilter = 'Semua';
+    renderThemeCats();
+    renderThemeGrid();
+    themeModal.classList.add('show');
+    themeModal.setAttribute('aria-hidden', 'false');
+  }
+  function closeThemeModal() {
+    themeModal.classList.remove('show');
+    themeModal.setAttribute('aria-hidden', 'true');
+  }
+  themeBtnEl.addEventListener('click', (e) => { openThemeModal(); e.currentTarget.blur(); });
+  themeCloseBtn.addEventListener('click', closeThemeModal);
+  themeModal.addEventListener('click', (e) => { if (e.target === themeModal) closeThemeModal(); });
+  themeSearchEl.addEventListener('input', renderThemeGrid);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && themeModal.classList.contains('show')) closeThemeModal();
+  });
+
+  // ============= INIT =============
+  loadState();
+  loadTheme();
+  applyTheme();
+  updateSoundButton();
+  // Restore active size-picker button to match loaded SIZE
+  document.querySelectorAll('.size-btn').forEach(b => {
+    const active = parseInt(b.dataset.size) === SIZE;
+    b.classList.toggle('active', active);
+    b.style.background = active ? 'var(--accent)' : 'transparent';
+    b.style.color = active ? '#2d2d2d' : 'var(--text)';
+  });
+  document.querySelectorAll('.target-btn').forEach(b => {
+    const active = parseInt(b.dataset.target) === WIN_VALUE;
+    b.classList.toggle('active', active);
+    b.style.background = active ? 'var(--accent)' : 'transparent';
+    b.style.color = active ? '#2d2d2d' : 'var(--text)';
+  });
+  buildBackgroundGrid();
+  resetGameState();
+  spawnTile();
+  spawnTile();
+  render(true);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Sokoban</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #2d1f12;
+    --panel: #3d2e1d;
+    --wall: #5d4037;
+    --floor: #6d4c41;
+    --target: #ffd54f;
+    --box: #8d6e63;
+    --box-done: #66bb6a;
+    --player: #ff5252;
+    --text: #f0e0d0;
+    --accent: #d4a06a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: linear-gradient(180deg, #3d2e1d 0%, var(--bg) 100%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    user-select: none;
+    touch-action: none;
+  }
+  .top-bar {
+    width: 100%; max-width: 500px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 0.6rem;
+  }
+  .logo { font-weight: 800; font-size: 1.3rem; }
+  .logo .accent { color: var(--accent); }
+  .top-controls { display: flex; gap: 0.4rem; }
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 1rem;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.18); }
+  .stats {
+    width: 100%; max-width: 500px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+  }
+  .stat {
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    padding: 0.5rem;
+    text-align: center;
+  }
+  .stat-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; opacity: 0.6; }
+  .stat-value { font-size: 1.05rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .stage {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 0.6rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    position: relative;
+  }
+  .board {
+    display: grid;
+    background: #1a0a04;
+    border-radius: 6px;
+    padding: 4px;
+  }
+  .tile {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+    transition: background 0.1s;
+  }
+  .tile.wall { background: var(--wall); }
+  .tile.floor { background: rgba(255,255,255,0.04); }
+  .tile.target { background: rgba(255,213,79,0.25); }
+  .tile.box, .tile.boxOnTarget { color: var(--box); }
+  .tile.boxOnTarget { color: var(--box-done); }
+  .tile.player { color: var(--player); }
+  .controls {
+    margin-top: 0.7rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.35rem;
+    max-width: 240px;
+    width: 100%;
+  }
+  .ctrl-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 1.2rem;
+    padding: 0.7rem 0.4rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .ctrl-btn:active { background: rgba(255,255,255,0.2); }
+  .ctrl-btn.empty { visibility: hidden; }
+  .level-pick {
+    margin: 0.5rem 0;
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 460px;
+  }
+  .level-pick button {
+    background: rgba(255,255,255,0.08);
+    border: none;
+    color: var(--text);
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.72rem;
+    cursor: pointer;
+    min-width: 30px;
+  }
+  .level-pick button.active {
+    background: var(--accent);
+    color: #2d2d2d;
+  }
+  .level-pick button.done {
+    background: var(--box-done);
+    color: #fff;
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(20, 12, 5, 0.95);
+    border-radius: 12px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.2rem;
+    backdrop-filter: blur(4px);
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 { font-size: 1.4rem; margin-bottom: 0.4rem; }
+  .overlay p { opacity: 0.75; font-size: 0.85rem; margin-bottom: 1rem; }
+  .overlay button {
+    background: var(--accent);
+    color: #2d2d2d;
+    border: none;
+    padding: 0.55rem 1.3rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    margin: 0.2rem;
+  }
+  .back-link {
+    position: absolute;
+    top: 0.5rem; left: 0.5rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.78rem;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+  <a href="../index.html" class="back-link">← Kembali</a>
+  <div class="top-bar">
+    <div class="logo">📦 Soko<span class="accent">.</span></div>
+    <div class="top-controls">
+      <button class="icon-btn" id="undoBtn" title="Undo">↶</button>
+      <button class="icon-btn" id="resetBtn" title="Reset level">🔄</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Level</div>
+      <div class="stat-value" id="levelNum">1</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Langkah</div>
+      <div class="stat-value" id="moves">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Best</div>
+      <div class="stat-value" id="best">—</div>
+    </div>
+  </div>
+
+  <div class="level-pick" id="levelPick"></div>
+
+  <div class="stage">
+    <div class="board" id="board"></div>
+    <div class="overlay" id="overlay">
+      <h2 id="overTitle">🎉 Selesai!</h2>
+      <p id="overSub"></p>
+      <div>
+        <button id="nextBtn">Level Berikutnya</button>
+        <button id="replayBtn" style="background:rgba(255,255,255,0.1);color:var(--text)">Ulangi</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn empty"></button>
+    <button class="ctrl-btn" data-dir="up">▲</button>
+    <button class="ctrl-btn empty"></button>
+    <button class="ctrl-btn" data-dir="left">◀</button>
+    <button class="ctrl-btn" data-dir="down">▼</button>
+    <button class="ctrl-btn" data-dir="right">▶</button>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+  const STORAGE_KEY = 'sokoban_v1';
+
+  // Symbols: # wall, . target, $ box, * box on target, @ player, + player on target, ' ' floor
+  const LEVELS = [
+    // 1 — tutorial
+    ["#####",
+     "#.@ #",
+     "#$  #",
+     "#   #",
+     "#####"],
+    // 2
+    ["######",
+     "#.@  #",
+     "# $$ #",
+     "#  . #",
+     "######"],
+    // 3
+    ["#######",
+     "#.    #",
+     "# $$@ #",
+     "#  .  #",
+     "#######"],
+    // 4
+    ["########",
+     "# .  . #",
+     "# $$ @ #",
+     "#      #",
+     "########"],
+    // 5
+    ["#######",
+     "#. .  #",
+     "#$ $@ #",
+     "# .   #",
+     "# $   #",
+     "#######"],
+    // 6
+    ["#########",
+     "#.    .#",
+     "# $ $  #",
+     "#  @   #",
+     "# $ $  #",
+     "#.    .#",
+     "#########"],
+    // 7
+    ["########",
+     "#  .   #",
+     "# .$.  #",
+     "#  $@  #",
+     "# .$.  #",
+     "#      #",
+     "########"],
+    // 8
+    [" ###### ",
+     "## ..  #",
+     "# $$ @ #",
+     "#  ##  #",
+     "#      #",
+     "########"],
+    // 9
+    ["########",
+     "#  ..  #",
+     "# $$.  #",
+     "#  .$  #",
+     "# @    #",
+     "########"],
+    // 10
+    ["#########",
+     "#.. @  ##",
+     "#.. $   #",
+     "#   $   #",
+     "###  $  #",
+     "  ##    #",
+     "   ######"],
+    // 11
+    ["#######",
+     "# .   #",
+     "# $$. #",
+     "#.@.$ #",
+     "# $.. #",
+     "#######"],
+    // 12
+    ["########",
+     "#  .   #",
+     "# .$.@ #",
+     "# $ $  #",
+     "#  .   #",
+     "########"],
+    // 13
+    ["#########",
+     "#.  @  .#",
+     "# $$ $$ #",
+     "#  $.   #",
+     "#. $  $ #",
+     "#   . . #",
+     "#########"],
+    // 14
+    [" ##### ",
+     "##   ##",
+     "#  $  #",
+     "# .$. #",
+     "# $@$ #",
+     "# .$. #",
+     "#  $  #",
+     "##   ##",
+     " ##### "],
+    // 15
+    ["########",
+     "#  ..  #",
+     "# $$ $.#",
+     "#  @ $.#",
+     "#. $   #",
+     "#  . . #",
+     "########"],
+    // 16
+    ["#########",
+     "#       #",
+     "# $ . . #",
+     "#   $ @ #",
+     "# . $   #",
+     "#       #",
+     "#########"],
+    // 17
+    ["##########",
+     "#   ..   #",
+     "# $$  @  #",
+     "#   ##   #",
+     "#  $$  . #",
+     "#  ..    #",
+     "##########"],
+    // 18
+    ["########",
+     "#.   . #",
+     "# $$$  #",
+     "# .@.  #",
+     "# $$$  #",
+     "#.   . #",
+     "########"],
+    // 19
+    ["#########",
+     "##   .  #",
+     "# $$$.  #",
+     "#@  .   #",
+     "# $$$.  #",
+     "##  .   #",
+     " ########"],
+    // 20
+    ["##########",
+     "#.   .   #",
+     "# $$ $$. #",
+     "# .  @ . #",
+     "# $$ $$  #",
+     "#.   .   #",
+     "##########"]
+  ];
+
+  // Parse level to grid + entities
+  function parseLevel(lines) {
+    const maxLen = Math.max(...lines.map(l => l.length));
+    const padded = lines.map(l => l.padEnd(maxLen, ' '));
+    const w = maxLen, h = padded.length;
+    const grid = []; // each cell: 'wall', 'floor', 'target'
+    let player = null;
+    const boxes = [];
+    for (let y = 0; y < h; y++) {
+      grid[y] = [];
+      for (let x = 0; x < w; x++) {
+        const c = padded[y][x];
+        switch (c) {
+          case '#': grid[y][x] = 'wall'; break;
+          case '.': grid[y][x] = 'target'; break;
+          case '$': grid[y][x] = 'floor'; boxes.push({ x, y }); break;
+          case '*': grid[y][x] = 'target'; boxes.push({ x, y }); break;
+          case '@': grid[y][x] = 'floor'; player = { x, y }; break;
+          case '+': grid[y][x] = 'target'; player = { x, y }; break;
+          default:  grid[y][x] = 'floor'; break;
+        }
+      }
+    }
+    return { grid, player, boxes, w, h };
+  }
+
+  let levelIdx = 0;
+  let state = null;
+  let history = [];
+  let moves = 0;
+  let bestMoves = {}; // level → min moves
+  let completedLevels = {};
+
+  const boardEl = document.getElementById('board');
+  const movesEl = document.getElementById('moves');
+  const bestEl = document.getElementById('best');
+  const levelNumEl = document.getElementById('levelNum');
+  const overlay = document.getElementById('overlay');
+  const overTitle = document.getElementById('overTitle');
+  const overSub = document.getElementById('overSub');
+
+  function load() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        bestMoves = data.bestMoves || {};
+        completedLevels = data.completedLevels || {};
+        levelIdx = Math.min(LEVELS.length - 1, Math.max(0, data.levelIdx || 0));
+      }
+    } catch(e) {}
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ bestMoves, completedLevels, levelIdx })); }
+    catch(e) {}
+  }
+
+  function renderLevelPick() {
+    const lp = document.getElementById('levelPick');
+    lp.innerHTML = '';
+    for (let i = 0; i < LEVELS.length; i++) {
+      const b = document.createElement('button');
+      b.textContent = i + 1;
+      if (i === levelIdx) b.classList.add('active');
+      if (completedLevels[i]) b.classList.add('done');
+      b.addEventListener('click', () => {
+        levelIdx = i;
+        save();
+        loadLevel();
+        b.blur();
+      });
+      lp.appendChild(b);
+    }
+  }
+
+  function loadLevel() {
+    state = parseLevel(LEVELS[levelIdx]);
+    history = [];
+    moves = 0;
+    overlay.classList.remove('show');
+    levelNumEl.textContent = levelIdx + 1;
+    movesEl.textContent = '0';
+    bestEl.textContent = bestMoves[levelIdx] || '—';
+    renderLevelPick();
+    render();
+  }
+
+  function render() {
+    boardEl.style.gridTemplateColumns = `repeat(${state.w}, var(--sk-cell))`;
+    // Determine cell size based on viewport
+    const cellSize = Math.max(20, Math.min(40,
+      Math.floor((window.innerWidth - 60) / state.w),
+      Math.floor((window.innerHeight - 320) / state.h)
+    ));
+    boardEl.style.setProperty('--sk-cell', cellSize + 'px');
+    boardEl.innerHTML = '';
+    for (let y = 0; y < state.h; y++) {
+      for (let x = 0; x < state.w; x++) {
+        const cell = document.createElement('div');
+        cell.className = 'tile';
+        cell.style.width = cellSize + 'px';
+        cell.style.height = cellSize + 'px';
+        cell.style.fontSize = (cellSize * 0.65) + 'px';
+        const base = state.grid[y][x];
+        cell.classList.add(base); // wall/floor/target
+        const isPlayer = state.player.x === x && state.player.y === y;
+        const box = state.boxes.find(b => b.x === x && b.y === y);
+        if (isPlayer) {
+          cell.classList.add('player');
+          cell.textContent = '🧑';
+        } else if (box) {
+          if (base === 'target') {
+            cell.classList.add('boxOnTarget');
+            cell.textContent = '🟩';
+          } else {
+            cell.classList.add('box');
+            cell.textContent = '📦';
+          }
+        } else if (base === 'target') {
+          cell.textContent = '•';
+          cell.style.color = '#ffd54f';
+          cell.style.opacity = '0.6';
+        } else if (base === 'wall') {
+          cell.textContent = '';
+        }
+        boardEl.appendChild(cell);
+      }
+    }
+  }
+
+  function move(dx, dy) {
+    if (!state || isComplete()) return;
+    const nx = state.player.x + dx;
+    const ny = state.player.y + dy;
+    if (nx < 0 || nx >= state.w || ny < 0 || ny >= state.h) return;
+    if (state.grid[ny][nx] === 'wall') return;
+    // Check if there's a box at target position
+    const boxIdx = state.boxes.findIndex(b => b.x === nx && b.y === ny);
+    if (boxIdx >= 0) {
+      const bx = nx + dx, by = ny + dy;
+      if (bx < 0 || bx >= state.w || by < 0 || by >= state.h) return;
+      if (state.grid[by][bx] === 'wall') return;
+      if (state.boxes.some(b => b.x === bx && b.y === by)) return;
+      // Push box
+      history.push({ player: { ...state.player }, boxes: state.boxes.map(b => ({ ...b })) });
+      state.boxes[boxIdx] = { x: bx, y: by };
+    } else {
+      history.push({ player: { ...state.player }, boxes: state.boxes.map(b => ({ ...b })) });
+    }
+    state.player.x = nx;
+    state.player.y = ny;
+    moves++;
+    movesEl.textContent = moves;
+    render();
+    if (isComplete()) onWin();
+  }
+
+  function isComplete() {
+    if (!state) return false;
+    return state.boxes.every(b => state.grid[b.y][b.x] === 'target');
+  }
+
+  function undo() {
+    if (history.length === 0) return;
+    const prev = history.pop();
+    state.player = prev.player;
+    state.boxes = prev.boxes;
+    moves--;
+    movesEl.textContent = moves;
+    render();
+  }
+
+  function onWin() {
+    completedLevels[levelIdx] = true;
+    const isBest = !bestMoves[levelIdx] || moves < bestMoves[levelIdx];
+    if (isBest) bestMoves[levelIdx] = moves;
+    save();
+    renderLevelPick();
+
+    const coins = 30 + levelIdx * 5;
+    if (window.GameHub) {
+      window.GameHub.coins.add(coins);
+      window.GameHub.notify('g12_level_done', { level: levelIdx + 1, moves });
+      window.GameHub.notify('game_start', { gameId: 12 });
+    }
+
+    setTimeout(() => {
+      overTitle.textContent = isBest ? '🎉 Rekor Baru!' : '✅ Selesai!';
+      overSub.innerHTML = `Langkah: <b>${moves}</b>${isBest ? ' ⭐' : ''} · Best: <b>${bestMoves[levelIdx]}</b><br>+${coins} 🪙`;
+      // Toggle next button visibility
+      const nb = document.getElementById('nextBtn');
+      nb.style.display = (levelIdx < LEVELS.length - 1) ? '' : 'none';
+      overlay.classList.add('show');
+    }, 300);
+  }
+
+  // Wire up
+  document.getElementById('undoBtn').addEventListener('click', () => undo());
+  document.getElementById('resetBtn').addEventListener('click', () => loadLevel());
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    if (levelIdx < LEVELS.length - 1) { levelIdx++; save(); loadLevel(); }
+  });
+  document.getElementById('replayBtn').addEventListener('click', () => loadLevel());
+
+  document.querySelectorAll('.ctrl-btn[data-dir]').forEach(b => {
+    b.addEventListener('click', () => {
+      const d = b.dataset.dir;
+      if (d === 'up') move(0, -1);
+      else if (d === 'down') move(0, 1);
+      else if (d === 'left') move(-1, 0);
+      else if (d === 'right') move(1, 0);
+      b.blur();
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); move(0, -1); }
+    else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') { e.preventDefault(); move(0, 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { e.preventDefault(); move(-1, 0); }
+    else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); move(1, 0); }
+    else if (e.key === 'z' || e.key === 'Z') { e.preventDefault(); undo(); }
+    else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); loadLevel(); }
+  });
+
+  // Touch swipe
+  let touchStart = null;
+  document.getElementById('board').addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  document.getElementById('board').addEventListener('touchend', (e) => {
+    if (!touchStart) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    touchStart = null;
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      move(dx > 0 ? 1 : -1, 0);
+    } else {
+      move(0, dy > 0 ? 1 : -1);
+    }
+  });
+
+  window.addEventListener('resize', render);
+
+  // INIT
+  load();
+  loadLevel();
+  if (window.GameHub) window.GameHub.notify('game_start', { gameId: 12 });
+})();
+</script>
+</body>
+</html>

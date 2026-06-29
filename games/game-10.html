@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Random Dice Defense</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #0a0a1f;
+    --panel: #161634;
+    --border: #2a2a52;
+    --text: #f0f0f0;
+    --text-muted: rgba(240,240,240,0.55);
+    --accent: #b388ff;
+    --hp-color: #ff5252;
+    --sp-color: #4dd0e1;
+    --score-color: #ffd54f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    background: var(--bg-dark);
+    background-image:
+      radial-gradient(ellipse at 20% 15%, rgba(179,136,255,0.12) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 85%, rgba(77,208,225,0.12) 0%, transparent 55%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  /* ---- Top bar ---- */
+  .top-bar {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+  .logo {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  .top-controls { display: flex; gap: 0.35rem; }
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .icon-btn:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
+  .icon-btn:active:not(:disabled) { transform: scale(0.92); }
+  .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ---- HUD ---- */
+  .hud {
+    width: 100%;
+    max-width: 400px;
+    display: grid;
+    grid-template-columns: 1fr 2fr 2fr 1fr;
+    gap: 0.3rem;
+    margin-bottom: 0.4rem;
+  }
+  .hud-cell {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.35rem 0.45rem;
+  }
+  .hud-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.42rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    line-height: 1;
+    margin-bottom: 0.2rem;
+  }
+  .hud-value {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.75rem;
+    line-height: 1;
+    transition: transform 0.15s, color 0.15s;
+  }
+  .hud-value.bump { animation: bump 0.3s ease; }
+  @keyframes bump { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+  .hud-value.wave-val { color: var(--accent); text-align: center; }
+  .hud-value.score-val { color: var(--score-color); text-align: right; }
+
+  .bar {
+    height: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    margin-top: 4px;
+  }
+  .bar-fill {
+    height: 100%;
+    transition: width 0.2s ease;
+  }
+  .hp-fill { background: linear-gradient(90deg, #ff5252, #ff8a80); }
+  .sp-fill { background: linear-gradient(90deg, #4dd0e1, #80deea); }
+  .bar-label {
+    position: absolute;
+    inset: 0;
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.5rem;
+    color: white;
+    line-height: 8px;
+    text-shadow: 0 0 2px rgba(0,0,0,0.7);
+  }
+
+  /* ---- Stage ---- */
+  .stage {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    aspect-ratio: 2 / 3;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #050514;
+    box-shadow: 0 0 24px rgba(179,136,255,0.18), inset 0 0 30px rgba(0,0,0,0.5);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  /* ---- Overlay ---- */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,10,31,0.94);
+    padding: 1rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    text-align: center;
+    backdrop-filter: blur(4px);
+    z-index: 20;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay h2 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(0.95rem, 4.5vw, 1.3rem);
+    color: var(--accent);
+    margin-bottom: 0.6rem;
+    line-height: 1.3;
+  }
+  .overlay h2.bad { color: var(--hp-color); }
+  .overlay h2.good { color: var(--score-color); }
+  .overlay .sub {
+    font-size: 0.8rem;
+    opacity: 0.85;
+    margin-bottom: 1rem;
+    line-height: 1.55;
+    max-width: 300px;
+  }
+  .overlay .badge {
+    background: var(--score-color);
+    color: #2d2d2d;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    margin-top: 0.4rem;
+    display: inline-block;
+    animation: badgePop 0.5s cubic-bezier(.5,0,.3,1.5);
+  }
+  @keyframes badgePop {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .big-btn {
+    background: var(--accent);
+    color: #0a0a1f;
+    border: none;
+    padding: 0.65rem 1.5rem;
+    border-radius: 6px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #6a3fcc;
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .big-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #6a3fcc; }
+  .big-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #6a3fcc; }
+  .big-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---- Action panel ---- */
+  .action-panel {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 0.55rem;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .action-msg {
+    flex: 1;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+  .action-msg b { color: var(--text); }
+  .summon-btn {
+    background: var(--sp-color);
+    color: #0a0a1f;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.65rem;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #00838f;
+    transition: transform 0.12s, box-shadow 0.12s, opacity 0.15s;
+    white-space: nowrap;
+  }
+  .summon-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 0 #00838f; }
+  .summon-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 #00838f; }
+  .summon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+  <a href="../index.html" style="position:fixed;top:0.5rem;left:0.5rem;color:inherit;text-decoration:none;font-size:0.78rem;opacity:0.75;background:rgba(0,0,0,0.4);padding:4px 9px;border-radius:6px;z-index:9999;font-family:Poppins,sans-serif">← Kembali</a>
+  <div class="top-bar">
+    <div class="logo">DICE&nbsp;DEFENSE</div>
+    <div class="top-controls">
+      <button class="icon-btn" id="soundBtn" aria-label="Matikan suara" aria-pressed="true">🔊</button>
+      <button class="icon-btn" id="pauseBtn" aria-label="Jeda" disabled>⏸</button>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="hud-cell">
+      <div class="hud-label">WAVE</div>
+      <div class="hud-value wave-val" id="wave">0</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">HP</div>
+      <div class="bar"><div class="bar-fill hp-fill" id="hpFill" style="width:100%"></div><div class="bar-label" id="hpText">20</div></div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">SP</div>
+      <div class="bar"><div class="bar-fill sp-fill" id="spFill" style="width:0%"></div><div class="bar-label" id="spText">0/99</div></div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-label">REKOR</div>
+      <div class="hud-value score-val" id="bestWave">0</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="320" height="480" aria-label="Dice Defense"></canvas>
+    <div class="overlay show" id="overlay">
+      <h2 id="overlayTitle">DICE<br>DEFENSE</h2>
+      <p class="sub" id="overlaySub">
+        Panggil dadu untuk bertahan dari serangan musuh.<br>
+        Klik 2 dadu sama level untuk gabungkan (upgrade)!
+      </p>
+      <button class="big-btn" id="startBtn">MULAI</button>
+    </div>
+  </div>
+
+  <div class="action-panel">
+    <div class="action-msg" id="actionMsg">Tekan <b>MULAI</b> untuk bermain.</div>
+    <button class="summon-btn" id="summonBtn" disabled>+ DADU (5 SP)</button>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============= CONSTANTS =============
+  const STORAGE_KEY = 'dicedefense_v1';
+  const W = 320, H = 480;
+
+  const PATH_Y = 110;
+  const PATH_H = 40;
+  const PATH_MIN_X = -30;
+  const PATH_MAX_X = W + 30;
+
+  const SLOT_COUNT = 5;
+  const SLOT_SIZE = 52;
+  const SLOT_GAP = 6;
+  const SLOT_AREA_W = SLOT_COUNT * SLOT_SIZE + (SLOT_COUNT - 1) * SLOT_GAP;
+  const SLOT_START_X = Math.floor((W - SLOT_AREA_W) / 2);
+  const SLOT_Y = H - SLOT_SIZE - 14;
+
+  const ENEMY_R = 12;            // radius
+  const HP_BAR_W = 22;
+  const HP_BAR_H = 3;
+
+  const START_HP = 20;
+  const START_SP = 10;
+  const MAX_SP = 99;
+  const SP_REGEN_INTERVAL = 1000;  // 1 SP per 1s
+  const SUMMON_COST = 5;
+  const PROJECTILE_SPEED = 380;     // px/s
+
+  const INTER_WAVE_MS = 3500;       // pause between waves
+  const MAX_LEVEL = 7;
+
+  // Level → damage and fire rate (ms between shots)
+  const DICE_STATS = {
+    1: { damage: 5,   fireRate: 800 },
+    2: { damage: 14,  fireRate: 720 },
+    3: { damage: 36,  fireRate: 640 },
+    4: { damage: 80,  fireRate: 560 },
+    5: { damage: 150, fireRate: 480 },
+    6: { damage: 260, fireRate: 400 },
+    7: { damage: 420, fireRate: 320 }
+  };
+
+  // Special dice types (rare): different stat profile + color
+  const DICE_TYPES = {
+    normal: { color: null,        damageMult: 1.0, rateMult: 1.0, label: '' },
+    sniper: { color: '#7c4dff',   damageMult: 3.0, rateMult: 2.5, label: '🎯' },
+    rapid:  { color: '#ff9100',   damageMult: 0.6, rateMult: 0.45, label: '⚡' }
+  };
+
+  // Color per level (gradient from common to legendary)
+  const LEVEL_COLORS = {
+    1: '#9e9e9e',
+    2: '#4caf50',
+    3: '#2196f3',
+    4: '#b388ff',
+    5: '#ff9100',
+    6: '#f44336',
+    7: '#ffd54f'
+  };
+
+  const DICE_PATTERNS = {
+    1: [[2,2]],
+    2: [[1,3],[3,1]],
+    3: [[1,3],[2,2],[3,1]],
+    4: [[1,1],[1,3],[3,1],[3,3]],
+    5: [[1,1],[1,3],[2,2],[3,1],[3,3]],
+    6: [[1,1],[1,3],[2,1],[2,3],[3,1],[3,3]],
+    7: [[1,1],[1,3],[2,1],[2,2],[2,3],[3,1],[3,3]]
+  };
+
+  // ============= DOM =============
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const summonBtn = document.getElementById('summonBtn');
+  const waveEl = document.getElementById('wave');
+  const hpFillEl = document.getElementById('hpFill');
+  const hpTextEl = document.getElementById('hpText');
+  const spFillEl = document.getElementById('spFill');
+  const spTextEl = document.getElementById('spText');
+  const bestWaveEl = document.getElementById('bestWave');
+  const actionMsg = document.getElementById('actionMsg');
+
+  // ============= STATE =============
+  let hp = START_HP;
+  let sp = START_SP;
+  let wave = 0;
+  let bestWave = 0;
+  let dice = new Array(SLOT_COUNT).fill(null);  // { level, lastShot }
+  let enemies = [];
+  let projectiles = [];
+  let particles = [];
+  let selectedSlot = null;
+
+  let running = false, paused = false, gameOver = false;
+  let waveActive = false;
+  let interWaveUntil = 0;
+  let lastSpRegenAt = 0;
+  let lastSpawnAt = 0;
+  let enemiesToSpawn = 0;
+  let enemySpawnInterval = 1200;
+  let waveEnemyHp = 10;
+  let waveEnemySpeed = 25;
+  let lastTime = 0;
+  let pauseStartTime = 0;
+
+  let soundOn = true;
+  let audioCtx = null;
+  let animationFrameId = null;
+  let pendingTimers = [];
+
+  // ============= PERSISTENCE =============
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ bestWave, soundOn })); } catch(e) {}
+  }
+  function loadState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        bestWave = (typeof data.bestWave === 'number' && data.bestWave >= 0 && isFinite(data.bestWave))
+          ? Math.floor(data.bestWave) : 0;
+        soundOn = data.soundOn !== false;
+      }
+    } catch(e) {}
+  }
+
+  // ============= SOUND =============
+  function ensureAudio() {
+    if (!soundOn) return false;
+    if (!audioCtx || audioCtx.state === 'closed') {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return false; }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return true;
+  }
+  function playSound(type) {
+    if (!ensureAudio()) return;
+    const t = audioCtx.currentTime;
+    const make = (freq, dur, gain, wave, t0) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = wave || 'sine';
+      o.frequency.setValueAtTime(freq, t0);
+      o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(gain, t0);
+      g.gain.exponentialRampToValueAtTime(0.01, t0 + dur);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    };
+    if (type === 'shoot') {
+      make(820, 0.06, 0.04, 'square', t);
+    } else if (type === 'hit') {
+      make(220, 0.05, 0.05, 'triangle', t);
+    } else if (type === 'kill') {
+      make(440, 0.08, 0.08, 'triangle', t);
+      make(660, 0.08, 0.06, 'triangle', t + 0.04);
+    } else if (type === 'summon') {
+      [261, 329, 392].forEach((f, i) => make(f, 0.07, 0.06, 'triangle', t + i * 0.05));
+    } else if (type === 'merge') {
+      [523, 659, 784, 1046].forEach((f, i) => make(f, 0.1, 0.1, 'triangle', t + i * 0.06));
+    } else if (type === 'fail') {
+      make(180, 0.12, 0.08, 'sawtooth', t);
+    } else if (type === 'hploss') {
+      make(160, 0.25, 0.13, 'sawtooth', t);
+    } else if (type === 'wavestart') {
+      [330, 440, 550, 660].forEach((f, i) => make(f, 0.1, 0.08, 'square', t + i * 0.06));
+    } else if (type === 'waveclear') {
+      [523, 659, 784, 1046, 1318].forEach((f, i) => make(f, 0.15, 0.1, 'triangle', t + i * 0.07));
+    } else if (type === 'gameover') {
+      [440, 330, 220, 110].forEach((f, i) => make(f, 0.3, 0.13, 'sawtooth', t + i * 0.18));
+    }
+  }
+
+  // ============= UTIL =============
+  function rectsHit(x1, y1, w1, h1, x2, y2, w2, h2) {
+    return !(x1 + w1 <= x2 || x2 + w2 <= x1 || y1 + h1 <= y2 || y2 + h2 <= y1);
+  }
+  function slotCenter(i) {
+    const x = SLOT_START_X + i * (SLOT_SIZE + SLOT_GAP) + SLOT_SIZE / 2;
+    const y = SLOT_Y + SLOT_SIZE / 2;
+    return { x, y };
+  }
+  function clearAllTimers() {
+    for (const t of pendingTimers) {
+      if (t.type === 'interval') clearInterval(t.id);
+      else clearTimeout(t.id);
+    }
+    pendingTimers = [];
+  }
+
+  // ============= GAME STATE =============
+  function resetGame() {
+    hp = START_HP;
+    sp = START_SP;
+    wave = 0;
+    dice = new Array(SLOT_COUNT).fill(null);
+    enemies = [];
+    projectiles = [];
+    particles = [];
+    selectedSlot = null;
+    waveActive = false;
+    interWaveUntil = 0;
+    enemiesToSpawn = 0;
+    lastSpRegenAt = performance.now();
+    lastSpawnAt = 0;
+    pauseStartTime = 0;
+    updateHUD();
+  }
+
+  function startGame() {
+    clearAllTimers();
+    resetGame();
+    running = true;
+    gameOver = false;
+    paused = false;
+    overlay.classList.remove('show');
+    pauseBtn.disabled = false;
+    pauseBtn.textContent = '⏸';
+    pauseBtn.setAttribute('aria-label', 'Jeda');
+    summonBtn.disabled = false;
+    setMessage(`Wave 1 dimulai!`);
+    startWave(1);
+    lastTime = performance.now();
+  }
+
+  function startWave(n) {
+    wave = n;
+    waveActive = true;
+    interWaveUntil = 0;
+    // GameHub: every wave start counts toward daily challenge / achievements
+    if (window.GameHub) window.GameHub.notify('g10_wave', { wave: n });
+    const isBossWave = n % 5 === 0;
+    if (isBossWave) {
+      // Boss wave: 1 huge enemy
+      enemiesToSpawn = 1;
+      enemySpawnInterval = 200;
+    } else {
+      enemiesToSpawn = 4 + Math.floor(n * 1.5);
+      enemySpawnInterval = Math.max(450, 1200 - n * 35);
+    }
+    waveEnemyHp = Math.floor(10 + n * 8);
+    waveEnemySpeed = Math.min(70, 22 + n * 2);
+    lastSpawnAt = performance.now();
+    playSound('wavestart');
+    updateHUD();
+    if (isBossWave) {
+      setMessage(`⚠️ Wave <b>${n}</b> — <b style="color:#ff5252">BOS MUNCUL!</b>`);
+    } else {
+      setMessage(`Wave <b>${n}</b> — ${enemiesToSpawn} musuh!`);
+    }
+  }
+
+  function endWave() {
+    waveActive = false;
+    const bonus = 3 + Math.floor(wave / 3);
+    sp = Math.min(MAX_SP, sp + bonus);
+    interWaveUntil = performance.now() + INTER_WAVE_MS;
+    playSound('waveclear');
+    updateHUD();
+    setMessage(`Wave <b>${wave}</b> bersih! +${bonus} SP bonus. Wave ${wave + 1} segera...`);
+  }
+
+  function doGameOver() {
+    if (gameOver) return;
+    gameOver = true;
+    running = false;
+    pauseBtn.disabled = true;
+    summonBtn.disabled = true;
+    playSound('gameover');
+
+    let newRecord = false;
+    if (wave > bestWave) {
+      bestWave = wave;
+      newRecord = true;
+      saveState();
+      updateHUD();
+    }
+    if (window.GameHub) {
+      window.GameHub.notify('g10_wave', { wave });
+      window.GameHub.notify('game_start', { gameId: 10 });
+      // Reward: 10 coins per wave survived
+      window.GameHub.coins.add(wave * 10);
+    }
+
+    setTimeout(() => {
+      overlayTitle.textContent = 'PERTAHANAN<br>JATUH';
+      overlayTitle.className = 'bad';
+      let sub = `Kamu bertahan sampai wave <b>${wave}</b>.`;
+      if (newRecord) sub += `<br><span class="badge">⭐ Rekor baru!</span>`;
+      overlaySub.innerHTML = sub;
+      startBtn.textContent = 'COBA LAGI';
+      overlay.classList.add('show');
+    }, 800);
+  }
+
+  // ============= ENEMIES =============
+  function spawnEnemy() {
+    // Boss wave: every 5 waves spawn a boss (huge HP, slower)
+    const isBossWave = wave % 5 === 0;
+    if (isBossWave) {
+      const bossHp = waveEnemyHp * 18;
+      enemies.push({
+        x: PATH_MIN_X,
+        y: PATH_Y + PATH_H / 2,
+        hp: bossHp,
+        maxHp: bossHp,
+        speed: Math.max(12, waveEnemySpeed * 0.5),
+        alive: true,
+        hitFlashUntil: 0,
+        isBoss: true
+      });
+    } else {
+      enemies.push({
+        x: PATH_MIN_X,
+        y: PATH_Y + PATH_H / 2 + (Math.random() - 0.5) * (PATH_H * 0.4),
+        hp: waveEnemyHp,
+        maxHp: waveEnemyHp,
+        speed: waveEnemySpeed,
+        alive: true,
+        hitFlashUntil: 0
+      });
+    }
+  }
+
+  function updateEnemies(dt) {
+    const now = performance.now();
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      if (!e.alive) { enemies.splice(i, 1); continue; }
+      e.x += e.speed * dt;
+      // Wiggle slightly for life
+      e.y += Math.sin(now * 0.005 + i) * 0.15;
+      // Keep y within path band
+      e.y = Math.max(PATH_Y + 6, Math.min(PATH_Y + PATH_H - 6, e.y));
+      // Reached end?
+      if (e.x > PATH_MAX_X) {
+        e.alive = false;
+        hp -= 1;
+        playSound('hploss');
+        updateHUD();
+        if (hp <= 0) {
+          enemies.splice(i, 1);
+          doGameOver();
+          return;
+        }
+        enemies.splice(i, 1);
+      }
+    }
+  }
+
+  // ============= PROJECTILES =============
+  function pickTarget() {
+    // Closest to the right edge (most threatening)
+    let best = null, bestX = -Infinity;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (e.x > bestX) { bestX = e.x; best = e; }
+    }
+    return best;
+  }
+
+  function diceShoot(now) {
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const d = dice[i];
+      if (!d) continue;
+      const stats = DICE_STATS[d.level];
+      const typeMod = DICE_TYPES[d.type || 'normal'] || DICE_TYPES.normal;
+      const effRate = stats.fireRate * typeMod.rateMult;
+      if (now - d.lastShot < effRate) continue;
+      const target = pickTarget();
+      if (!target) continue;
+      const { x, y } = slotCenter(i);
+      projectiles.push({
+        x, y,
+        target,
+        damage: Math.floor(stats.damage * typeMod.damageMult),
+        speed: PROJECTILE_SPEED,
+        color: typeMod.color || LEVEL_COLORS[d.level],
+        dead: false
+      });
+      d.lastShot = now;
+      playSound('shoot');
+    }
+  }
+
+  function updateProjectiles(dt) {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+      const p = projectiles[i];
+      // Update target X/Y from live target (if still alive)
+      let tx, ty;
+      if (p.target && p.target.alive) {
+        tx = p.target.x; ty = p.target.y;
+      } else {
+        // Target died; expire projectile
+        p.dead = true;
+        projectiles.splice(i, 1);
+        continue;
+      }
+      const dx = tx - p.x, dy = ty - p.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 6) {
+        // Hit
+        const e = p.target;
+        e.hp -= p.damage;
+        e.hitFlashUntil = performance.now() + 80;
+        spawnParticles(p.x, p.y, p.color, 3);
+        playSound('hit');
+        if (e.hp <= 0 && e.alive) {
+          e.alive = false;
+          // Boss gives big SP reward and triggers celebration
+          const reward = e.isBoss ? 15 : 1;
+          sp = Math.min(MAX_SP, sp + reward);
+          spawnParticles(e.x, e.y, '#ff8a80', e.isBoss ? 24 : 8);
+          if (e.isBoss) {
+            spawnParticles(e.x, e.y, '#ffd54f', 16);
+            setMessage(`🏆 <b>BOS DIKALAHKAN!</b> +${reward} SP bonus.`);
+            playSound('waveclear');
+          } else {
+            playSound('kill');
+          }
+          updateHUD();
+        }
+        projectiles.splice(i, 1);
+        continue;
+      }
+      const vx = dx / dist * p.speed;
+      const vy = dy / dist * p.speed;
+      p.x += vx * dt;
+      p.y += vy * dt;
+    }
+  }
+
+  // ============= PARTICLES =============
+  function spawnParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 30 + Math.random() * 60;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0,
+        maxLife: 0.3 + Math.random() * 0.3,
+        size: 1.5 + Math.random() * 1.5,
+        color
+      });
+    }
+  }
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life += dt;
+      if (p.life >= p.maxLife) { particles.splice(i, 1); continue; }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 80 * dt;
+    }
+  }
+
+  // ============= SUMMON / MERGE =============
+  function findEmptySlot() {
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      if (!dice[i]) return i;
+    }
+    return -1;
+  }
+
+  function summonDie() {
+    if (gameOver || !running || paused) return;
+    if (sp < SUMMON_COST) {
+      setMessage(`Butuh ${SUMMON_COST} SP untuk panggil dadu.`);
+      playSound('fail');
+      return;
+    }
+    const slot = findEmptySlot();
+    if (slot === -1) {
+      setMessage(`Semua slot penuh — gabungkan dadu yang sama dulu!`);
+      playSound('fail');
+      return;
+    }
+    sp -= SUMMON_COST;
+    // Lucky summon: small chance of higher level OR special type
+    let level = 1;
+    let type = 'normal';
+    const r = Math.random();
+    if (r < 0.03) { type = 'sniper'; level = 1; }   // 3% chance Sniper
+    else if (r < 0.07) { type = 'rapid'; level = 1; } // 4% chance Rapid
+    else if (r < 0.11) level = 3;                   // 4% chance Lv 3
+    else if (r < 0.22) level = 2;                   // 11% chance Lv 2
+    dice[slot] = { level, type, lastShot: 0, summonAnim: 1 };
+    playSound(level > 1 || type !== 'normal' ? 'merge' : 'summon');
+    updateHUD();
+    if (type === 'sniper') setMessage(`🎯 <b>SNIPER!</b> Dadu langka muncul!`);
+    else if (type === 'rapid') setMessage(`⚡ <b>RAPID!</b> Dadu tembak cepat!`);
+    else if (level === 3) setMessage(`⭐ <b>JACKPOT!</b> Dadu Lv.3 keluar!`);
+    else if (level === 2) setMessage(`✨ Beruntung! Dadu Lv.2 keluar.`);
+    else setMessage(`Dadu Lv.1 dipanggil.`);
+  }
+
+  function tryMerge(slotA, slotB) {
+    if (slotA === slotB) return false;
+    const a = dice[slotA], b = dice[slotB];
+    if (!a || !b) return false;
+    if (a.level !== b.level) {
+      setMessage(`Beda level — tidak bisa gabungkan.`);
+      playSound('fail');
+      return false;
+    }
+    if ((a.type || 'normal') !== (b.type || 'normal')) {
+      setMessage(`Beda tipe — tidak bisa gabungkan.`);
+      playSound('fail');
+      return false;
+    }
+    if (a.level >= MAX_LEVEL) {
+      setMessage(`Sudah level maksimal (${MAX_LEVEL}).`);
+      playSound('fail');
+      return false;
+    }
+    // Upgrade slotB to next level, clear slotA
+    dice[slotB] = { level: a.level + 1, type: a.type || 'normal', lastShot: 0, summonAnim: 1 };
+    dice[slotA] = null;
+    spawnParticles(slotCenter(slotB).x, slotCenter(slotB).y, LEVEL_COLORS[a.level + 1], 12);
+    playSound('merge');
+    setMessage(`Gabungkan! Naik ke Lv.${a.level + 1}`);
+    return true;
+  }
+
+  // ============= INPUT =============
+  function getCanvasCoords(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left) * (W / rect.width),
+      y: (clientY - rect.top) * (H / rect.height)
+    };
+  }
+  function slotAt(x, y) {
+    if (y < SLOT_Y || y > SLOT_Y + SLOT_SIZE) return -1;
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const sx = SLOT_START_X + i * (SLOT_SIZE + SLOT_GAP);
+      if (x >= sx && x <= sx + SLOT_SIZE) return i;
+    }
+    return -1;
+  }
+
+  function handleCanvasClick(canvasX, canvasY) {
+    if (gameOver || !running || paused) return;
+    const slot = slotAt(canvasX, canvasY);
+    if (slot === -1) {
+      selectedSlot = null;
+      return;
+    }
+    if (!dice[slot]) {
+      // Empty: deselect
+      selectedSlot = null;
+      return;
+    }
+    if (selectedSlot === null) {
+      selectedSlot = slot;
+      return;
+    }
+    if (selectedSlot === slot) {
+      selectedSlot = null;
+      return;
+    }
+    // Try merge
+    if (tryMerge(selectedSlot, slot)) {
+      selectedSlot = null;
+    } else {
+      // Couldn't merge — switch selection to new slot
+      selectedSlot = slot;
+    }
+  }
+
+  canvas.addEventListener('click', (e) => {
+    const { x, y } = getCanvasCoords(e.clientX, e.clientY);
+    handleCanvasClick(x, y);
+  });
+  canvas.addEventListener('touchend', (e) => {
+    if (e.changedTouches && e.changedTouches[0]) {
+      const t = e.changedTouches[0];
+      const { x, y } = getCanvasCoords(t.clientX, t.clientY);
+      handleCanvasClick(x, y);
+      e.preventDefault();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === ' ' || e.key === 's' || e.key === 'S') {
+      const focused = document.activeElement;
+      if (focused && focused.tagName === 'BUTTON' && focused !== summonBtn) return;
+      e.preventDefault();
+      summonDie();
+    } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+      e.preventDefault();
+      if (running && !gameOver) togglePause();
+    } else if (e.key === 'Enter') {
+      if (overlay.classList.contains('show')) {
+        e.preventDefault();
+        startBtn.click();
+      }
+    }
+  });
+
+  // ============= PAUSE =============
+  function togglePause() {
+    if (!running || gameOver) return;
+    paused = !paused;
+    if (paused) {
+      pauseBtn.textContent = '▶';
+      pauseBtn.setAttribute('aria-label', 'Lanjutkan');
+      pauseStartTime = performance.now();
+      setMessage('Dijeda.');
+    } else {
+      pauseBtn.textContent = '⏸';
+      pauseBtn.setAttribute('aria-label', 'Jeda');
+      // Shift all time-based timestamps forward by pause duration so they don't all fire at once
+      const pd = performance.now() - pauseStartTime;
+      lastSpRegenAt += pd;
+      lastSpawnAt += pd;
+      if (interWaveUntil > 0) interWaveUntil += pd;
+      for (const d of dice) if (d) d.lastShot += pd;
+      lastTime = performance.now();
+      setMessage('Lanjut!');
+    }
+  }
+
+  // ============= UPDATE / RENDER =============
+  function update(dt) {
+    const now = performance.now();
+    if (!running || paused || gameOver) return;
+
+    // SP regen
+    if (now - lastSpRegenAt >= SP_REGEN_INTERVAL) {
+      sp = Math.min(MAX_SP, sp + 1);
+      lastSpRegenAt += SP_REGEN_INTERVAL;
+      updateHUD();
+    }
+
+    if (waveActive) {
+      // Spawn enemies
+      if (enemiesToSpawn > 0 && now - lastSpawnAt >= enemySpawnInterval) {
+        spawnEnemy();
+        enemiesToSpawn--;
+        lastSpawnAt = now;
+      }
+    } else if (interWaveUntil > 0 && now >= interWaveUntil) {
+      // Inter-wave done: start next wave
+      startWave(wave + 1);
+    }
+
+    updateEnemies(dt);
+    diceShoot(now);
+    updateProjectiles(dt);
+    updateParticles(dt);
+
+    // Wave clear check
+    if (waveActive && enemiesToSpawn <= 0 && enemies.length === 0) {
+      endWave();
+    }
+  }
+
+  function drawBackground() {
+    ctx.fillStyle = '#050514';
+    ctx.fillRect(0, 0, W, H);
+    // Grid stars (subtle)
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    for (let i = 0; i < 30; i++) {
+      const x = (i * 47) % W;
+      const y = (i * 79) % H;
+      ctx.fillRect(x, y, 1, 1);
+    }
+    // Path band
+    ctx.fillStyle = 'rgba(179,136,255,0.08)';
+    ctx.fillRect(0, PATH_Y, W, PATH_H);
+    ctx.strokeStyle = 'rgba(179,136,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, PATH_Y); ctx.lineTo(W, PATH_Y);
+    ctx.moveTo(0, PATH_Y + PATH_H); ctx.lineTo(W, PATH_Y + PATH_H);
+    ctx.stroke();
+    // Direction arrow
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('→', W / 2, PATH_Y + PATH_H / 2 + 5);
+
+    // Goal flag (right side) — losing side
+    ctx.fillStyle = 'rgba(255,82,82,0.25)';
+    ctx.fillRect(W - 6, PATH_Y, 6, PATH_H);
+
+    // Slot area divider
+    ctx.strokeStyle = 'rgba(179,136,255,0.25)';
+    ctx.beginPath();
+    ctx.moveTo(0, SLOT_Y - 6);
+    ctx.lineTo(W, SLOT_Y - 6);
+    ctx.stroke();
+  }
+
+  function drawEnemies() {
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const flash = e.hitFlashUntil > performance.now();
+      const radius = e.isBoss ? ENEMY_R * 2 : ENEMY_R;
+      ctx.fillStyle = flash ? '#ffffff' : (e.isBoss ? '#7e0000' : '#ff5252');
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = e.isBoss ? '#3d0000' : '#7e0000';
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, radius - 4, 0, Math.PI * 2);
+      ctx.fill();
+      if (e.isBoss) {
+        // Crown spikes
+        ctx.fillStyle = '#ffd54f';
+        ctx.fillRect(e.x - 8, e.y - radius - 2, 16, 3);
+        ctx.fillRect(e.x - 6, e.y - radius - 5, 3, 3);
+        ctx.fillRect(e.x - 1, e.y - radius - 5, 3, 3);
+        ctx.fillRect(e.x + 4, e.y - radius - 5, 3, 3);
+        // Bigger eyes
+        ctx.fillStyle = '#ffd54f';
+        ctx.fillRect(e.x - 8, e.y - 4, 4, 4);
+        ctx.fillRect(e.x + 4, e.y - 4, 4, 4);
+      } else {
+        // Eyes
+        ctx.fillStyle = '#ffd54f';
+        ctx.fillRect(e.x - 4, e.y - 3, 2, 2);
+        ctx.fillRect(e.x + 2, e.y - 3, 2, 2);
+      }
+      // HP bar
+      const hpPct = Math.max(0, e.hp / e.maxHp);
+      const barW = e.isBoss ? HP_BAR_W * 2.5 : HP_BAR_W;
+      const barH = e.isBoss ? 5 : HP_BAR_H;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(e.x - barW/2, e.y - radius - 8, barW, barH);
+      ctx.fillStyle = hpPct > 0.5 ? '#69f0ae' : hpPct > 0.25 ? '#ffd54f' : '#ff5252';
+      ctx.fillRect(e.x - barW/2, e.y - radius - 8, barW * hpPct, barH);
+    }
+  }
+
+  function drawProjectiles() {
+    for (const p of projectiles) {
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Trail
+      ctx.fillStyle = p.color + '55';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const alpha = 1 - (p.life / p.maxLife);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawDie(slotIdx) {
+    const x = SLOT_START_X + slotIdx * (SLOT_SIZE + SLOT_GAP);
+    const y = SLOT_Y;
+    // Slot background
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(x, y, SLOT_SIZE, SLOT_SIZE);
+    ctx.strokeStyle = selectedSlot === slotIdx ? '#ffd54f' : 'rgba(179,136,255,0.25)';
+    ctx.lineWidth = selectedSlot === slotIdx ? 2 : 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, SLOT_SIZE - 1, SLOT_SIZE - 1);
+
+    const d = dice[slotIdx];
+    if (!d) return;
+
+    // Animate summon scale-in
+    let scale = 1;
+    if (d.summonAnim > 0) {
+      d.summonAnim -= 0.06;
+      if (d.summonAnim < 0) d.summonAnim = 0;
+      scale = 1 + d.summonAnim * 0.3;
+    }
+    const inset = 5;
+    const dw = (SLOT_SIZE - inset * 2) * scale;
+    const dx = x + (SLOT_SIZE - dw) / 2;
+    const dy = y + (SLOT_SIZE - dw) / 2;
+    // Die body — special types override color
+    const typeMod = DICE_TYPES[d.type || 'normal'] || DICE_TYPES.normal;
+    const color = typeMod.color || LEVEL_COLORS[d.level] || '#ffffff';
+    ctx.fillStyle = color;
+    roundedRect(dx, dy, dw, dw, 5);
+    ctx.fill();
+    // Glow for special types or high levels
+    if (d.level >= 4 || (d.type && d.type !== 'normal')) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+      roundedRect(dx, dy, dw, dw, 5);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    // Dots
+    const pattern = DICE_PATTERNS[d.level] || [];
+    const dotSize = dw / 8;
+    for (const [r, c] of pattern) {
+      const cx = dx + (c - 0.5) * (dw / 3);
+      const cy = dy + (r - 0.5) * (dw / 3);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Level number badge (top-right)
+    if (d.level >= 2) {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(dx + dw - 12, dy - 2, 12, 10);
+      ctx.fillStyle = '#ffd54f';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(d.level, dx + dw - 6, dy + 6);
+    }
+    // Type label (bottom-left corner) for special types
+    if (typeMod.label) {
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(typeMod.label, dx + 2, dy + dw - 2);
+    }
+  }
+
+  function roundedRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawDice() {
+    for (let i = 0; i < SLOT_COUNT; i++) drawDie(i);
+  }
+
+  function drawWaveBanner() {
+    if (interWaveUntil <= 0) return;
+    const refTime = paused ? pauseStartTime : performance.now();
+    if (interWaveUntil <= refTime) return;
+    const remaining = Math.ceil((interWaveUntil - refTime) / 1000);
+    const nextWave = wave + 1;
+    const isNextBoss = nextWave % 5 === 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, PATH_Y - 38, W, 32);
+    ctx.fillStyle = isNextBoss ? '#ff5252' : '#ffd54f';
+    ctx.font = "bold 11px 'Press Start 2P', monospace";
+    ctx.textAlign = 'center';
+    ctx.fillText(`WAVE ${nextWave}${isNextBoss ? ' (BOS!)' : ''} dalam ${remaining}...`, W / 2, PATH_Y - 22);
+    // Sub-line: enemy info
+    ctx.fillStyle = '#69f0ae';
+    ctx.font = "6px 'Press Start 2P', monospace";
+    const enemyHp = Math.floor(10 + nextWave * 8);
+    const enemyCount = isNextBoss ? 1 : (4 + Math.floor(nextWave * 1.5));
+    const hpLabel = isNextBoss ? `1 BOS · ${enemyHp * 18} HP` : `${enemyCount} musuh · ${enemyHp} HP`;
+    ctx.fillText(hpLabel, W / 2, PATH_Y - 10);
+  }
+
+  function render() {
+    drawBackground();
+    drawWaveBanner();
+    drawProjectiles();
+    drawEnemies();
+    drawParticles();
+    drawDice();
+  }
+
+  // ============= HUD =============
+  function setMessage(html) {
+    actionMsg.innerHTML = html;
+  }
+  function updateHUD() {
+    waveEl.textContent = wave;
+    hpFillEl.style.width = Math.max(0, (hp / START_HP * 100)) + '%';
+    hpTextEl.textContent = Math.max(0, hp);
+    spFillEl.style.width = (sp / MAX_SP * 100) + '%';
+    spTextEl.textContent = sp + '/' + MAX_SP;
+    bestWaveEl.textContent = bestWave;
+    summonBtn.textContent = `+ DADU (${SUMMON_COST} SP)`;
+    summonBtn.disabled = !running || gameOver || paused || sp < SUMMON_COST;
+  }
+  function updateSoundButton() {
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    soundBtn.setAttribute('aria-label', soundOn ? 'Matikan suara' : 'Nyalakan suara');
+    soundBtn.setAttribute('aria-pressed', String(soundOn));
+  }
+
+  // ============= LOOP =============
+  function loop(now) {
+    if (!lastTime) lastTime = now;
+    let dt = (now - lastTime) / 1000;
+    if (dt > 0.1) dt = 0.1;
+    lastTime = now;
+    update(dt);
+    render();
+    animationFrameId = requestAnimationFrame(loop);
+  }
+
+  // ============= EVENTS =============
+  startBtn.addEventListener('click', () => {
+    if (paused && running && !gameOver) togglePause();
+    else startGame();
+  });
+  pauseBtn.addEventListener('click', togglePause);
+  summonBtn.addEventListener('click', summonDie);
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    updateSoundButton();
+    saveState();
+    if (soundOn) ensureAudio();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && running && !paused && !gameOver) togglePause();
+    if (!audioCtx) return;
+    if (document.hidden && audioCtx.state === 'running') {
+      audioCtx.suspend().catch(() => {});
+    } else if (!document.hidden && audioCtx.state === 'suspended' && soundOn) {
+      audioCtx.resume().catch(() => {});
+    }
+  });
+
+  // ============= INIT =============
+  loadState();
+  updateSoundButton();
+  resetGame();
+  updateHUD();
+  animationFrameId = requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

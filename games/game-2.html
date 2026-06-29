@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic-Tac-Toe · Teka-teki</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root, [data-theme="light"] {
+    --bg-1: #fef9f3;
+    --bg-2: #ffe8d6;
+    --ink: #2d2d2d;
+    --x-color: #ea4335;
+    --o-color: #4285f4;
+    --win: #34a853;
+    --paper: #ffffff;
+    --cell-bg: #fef9f3;
+    --cell-hover: #ffe8d6;
+    --win-bg: #d4f7d9;
+    --lose-bg: #fde2e0;
+    --thinking-bg: #fff3e0;
+    --shadow-strong: rgba(0,0,0,0.1);
+    --shadow-soft: rgba(0,0,0,0.06);
+    --shadow-color: rgba(0,0,0,0.08);
+  }
+
+  [data-theme="dark"] {
+    --bg-1: #1a1a2e;
+    --bg-2: #16213e;
+    --ink: #e8e8e8;
+    --x-color: #ff6b6b;
+    --o-color: #6bb6ff;
+    --win: #5fd97f;
+    --paper: #252541;
+    --cell-bg: #1e1e38;
+    --cell-hover: #2a2a4a;
+    --win-bg: #1f3a2a;
+    --lose-bg: #3a1f1f;
+    --thinking-bg: #3a2a1a;
+    --shadow-strong: rgba(0,0,0,0.4);
+    --shadow-soft: rgba(0,0,0,0.3);
+    --shadow-color: rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%);
+    color: var(--ink);
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(0.5rem, 2vw, 1.25rem);
+    overflow: auto;
+    position: relative;
+    transition: background 0.4s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.3;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .blob.b1 { width: 300px; height: 300px; background: #fbbc04; top: -100px; left: -80px; animation: float 8s ease-in-out infinite; }
+  .blob.b2 { width: 250px; height: 250px; background: var(--o-color); bottom: -80px; right: -60px; animation: float 10s ease-in-out infinite reverse; }
+  .blob.b3 { width: 200px; height: 200px; background: var(--x-color); top: 40%; right: 10%; animation: float 12s ease-in-out infinite; }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(30px, -20px) scale(1.1); }
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 460px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .top-bar {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+  }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    box-shadow: 0 3px 0 var(--shadow-strong);
+    transition: transform 0.15s, opacity 0.15s;
+    color: var(--ink);
+  }
+  .icon-btn:hover:not(:disabled) { transform: scale(1.1); }
+  .icon-btn:active:not(:disabled) { transform: scale(0.95); }
+  .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  h1 {
+    font-family: 'Caveat', cursive;
+    font-size: clamp(1.8rem, 6vw, 3rem);
+    font-weight: 700;
+    line-height: 0.9;
+    margin-bottom: 0.2rem;
+  }
+
+  h1 span {
+    display: inline-block;
+    transition: transform 0.3s;
+  }
+  h1 span:nth-child(1) { color: var(--x-color); }
+  h1 span:nth-child(2) { color: #fbbc04; }
+  h1 span:nth-child(3) { color: var(--o-color); }
+  h1 span:nth-child(4) { color: var(--win); }
+  h1:hover span { transform: translateY(-4px) rotate(-3deg); }
+  h1:hover span:nth-child(even) { transform: translateY(-4px) rotate(3deg); }
+
+  .sub {
+    font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+    opacity: 0.7;
+    margin-bottom: clamp(0.4rem, 1vw, 0.75rem);
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: clamp(0.4rem, 1vw, 0.75rem);
+    align-items: center;
+  }
+
+  .mode-pick, .level-pick {
+    display: inline-flex;
+    background: var(--paper);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 4px;
+    box-shadow: 0 2px 0 var(--shadow-strong);
+  }
+  .mode-pick button, .level-pick button {
+    padding: clamp(0.35rem, 1vw, 0.5rem) clamp(0.6rem, 2vw, 1rem);
+    font-size: clamp(0.65rem, 1.6vw, 0.8rem);
+    font-weight: 700;
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--ink);
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .mode-pick button.active, .level-pick button.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .level-pick.hidden { display: none; }
+
+  .scoreboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: clamp(0.4rem, 1.2vw, 0.75rem);
+    margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
+  }
+
+  .score {
+    background: var(--paper);
+    border-radius: 12px;
+    padding: clamp(0.4rem, 1vw, 0.75rem) 0.5rem;
+    box-shadow: 0 4px 0 var(--shadow-color), 0 8px 20px var(--shadow-soft);
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+  .score.active {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 0 var(--shadow-color), 0 12px 24px var(--shadow-strong);
+  }
+  .score .label {
+    font-size: clamp(0.6rem, 1.5vw, 0.7rem);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.6;
+    font-weight: 700;
+  }
+  .score .value {
+    font-size: clamp(1.1rem, 3.5vw, 1.6rem);
+    font-weight: 900;
+    line-height: 1;
+    margin-top: 0.2rem;
+  }
+  .score.x .value { color: var(--x-color); }
+  .score.o .value { color: var(--o-color); }
+  .score.tie .value { color: #888; }
+
+  .streak {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #fbbc04;
+    color: #2d2d2d;
+    font-size: 0.7rem;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: scale(0);
+    transition: all 0.3s cubic-bezier(.5,0,.3,1.5);
+  }
+  .streak.show { opacity: 1; transform: scale(1); }
+
+  .status {
+    background: var(--paper);
+    border-radius: 16px;
+    padding: clamp(0.5rem, 1.5vw, 0.85rem) 1rem;
+    margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
+    font-weight: 700;
+    font-size: clamp(0.8rem, 2vw, 1rem);
+    box-shadow: 0 4px 0 var(--shadow-color);
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background 0.3s;
+  }
+  .status.thinking { background: var(--thinking-bg); }
+  .status.win { background: var(--win-bg); }
+  .status.lose { background: var(--lose-bg); }
+
+  .thinking-dots span {
+    display: inline-block;
+    animation: blink 1.4s infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0.3; }
+    40% { opacity: 1; }
+  }
+
+  .board {
+    background: var(--paper);
+    border-radius: 20px;
+    padding: clamp(8px, 2vw, 16px);
+    box-shadow: 0 6px 0 var(--shadow-color), 0 16px 40px var(--shadow-strong);
+    position: relative;
+    width: 100%;
+    max-width: min(380px, 70vh);
+    margin: 0 auto;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 8px;
+    aspect-ratio: 1;
+    position: relative;
+  }
+
+  .cell {
+    background: var(--cell-bg);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.15s;
+    position: relative;
+    border: none;
+    font-family: inherit;
+    outline: none;
+    touch-action: manipulation;
+  }
+
+  .cell:not(.filled):not(.locked):hover,
+  .cell:not(.filled):not(.locked):focus-visible {
+    background: var(--cell-hover);
+    transform: scale(0.96);
+  }
+
+  .cell:focus-visible {
+    box-shadow: 0 0 0 3px var(--ink);
+  }
+
+  .cell.filled, .cell.locked { cursor: default; }
+  .cell.locked:not(.filled):hover { background: var(--cell-bg); transform: none; }
+
+  .cell .key-hint {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    opacity: 0.25;
+    color: var(--ink);
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .cell.filled .key-hint, .cell.locked .key-hint { opacity: 0; }
+
+  .cell svg {
+    width: 60%;
+    height: 60%;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    stroke-width: 8;
+  }
+
+  .cell .x-mark { stroke: var(--x-color); }
+  .cell .o-mark { stroke: var(--o-color); }
+
+  .cell.drawing .x-mark line {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: draw 0.3s ease forwards;
+  }
+  .cell.drawing .x-mark line:nth-child(2) { animation-delay: 0.15s; }
+
+  .cell.drawing .o-mark circle {
+    stroke-dasharray: 220;
+    stroke-dashoffset: 220;
+    animation: draw 0.4s ease forwards;
+  }
+
+  @keyframes draw {
+    to { stroke-dashoffset: 0; }
+  }
+
+  .cell.win {
+    background: var(--win-bg);
+    animation: winPulse 0.6s ease forwards;
+  }
+  @keyframes winPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
+  .win-line {
+    position: absolute;
+    background: var(--win);
+    height: 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    box-shadow: 0 2px 12px rgba(52, 168, 83, 0.6);
+    z-index: 5;
+  }
+
+  .controls {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: center;
+    margin-top: clamp(0.5rem, 1.5vw, 1rem);
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: clamp(0.7rem, 1.6vw, 0.85rem);
+    padding: clamp(0.45rem, 1.2vw, 0.7rem) clamp(0.8rem, 2vw, 1.3rem);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: 0 4px 0 var(--shadow-strong);
+    transition: all 0.15s;
+  }
+
+  .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 0 var(--shadow-strong); }
+  .btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--shadow-strong); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+
+  .footer-hint {
+    margin-top: clamp(0.5rem, 1.5vw, 1rem);
+    font-size: clamp(0.65rem, 1.5vw, 0.75rem);
+    opacity: 0.5;
+    font-style: italic;
+  }
+
+  .confetti {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .countdown {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .countdown.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .countdown-num {
+    font-family: 'Caveat', cursive;
+    font-size: 8rem;
+    color: white;
+    font-weight: 700;
+    animation: countdownPop 0.7s ease forwards;
+  }
+  @keyframes countdownPop {
+    0% { transform: scale(0.3); opacity: 0; }
+    30% { transform: scale(1.2); opacity: 1; }
+    70% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+
+  /* SR-only utility for aria-live region */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-height: 760px) {
+    h1 { font-size: clamp(1.5rem, 5vw, 2.2rem); margin-bottom: 0; }
+    .sub { display: none; }
+    .scoreboard { margin-bottom: 0.5rem; }
+    .options { margin-bottom: 0.5rem; }
+  }
+  @media (max-height: 640px) {
+    h1 { font-size: 1.5rem; }
+    .options { gap: 0.3rem; }
+    .scoreboard .score { padding: 0.4rem 0.4rem; }
+    .score .value { font-size: 1.1rem; }
+    .status { min-height: 32px; padding: 0.4rem 0.7rem; font-size: 0.8rem; margin-bottom: 0.4rem; }
+    .controls { margin-top: 0.5rem; }
+    .footer-hint { display: none; }
+    .board { max-width: min(280px, 55vh); padding: 8px; }
+  }
+  /* Very narrow screens: hide subtitle */
+  @media (max-width: 380px) {
+    .sub { display: none; }
+    .top-bar { top: 0.5rem; right: 0.5rem; }
+  }
+  /* Top bar buttons smaller on mobile */
+  @media (max-width: 480px) {
+    .icon-btn { width: 34px; height: 34px; font-size: 0.95rem; }
+  }
+</style>
+</head>
+<body>
+  <a href="../index.html" style="position:fixed;top:0.5rem;left:0.5rem;color:inherit;text-decoration:none;font-size:0.78rem;opacity:0.75;background:rgba(0,0,0,0.4);padding:4px 9px;border-radius:6px;z-index:9999;font-family:Poppins,sans-serif">← Kembali</a>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+
+  <div class="top-bar">
+    <button class="icon-btn" id="themeToggle" title="Ganti tema" aria-label="Ganti tema">🌙</button>
+    <button class="icon-btn" id="soundToggle" title="Suara" aria-label="Suara">🔊</button>
+    <button class="icon-btn" id="undoBtn" title="Undo (Z)" aria-label="Undo">↶</button>
+  </div>
+
+  <div class="wrap">
+    <h1><span>T</span><span>i</span><span>c</span><span>·</span><span>T</span><span>a</span><span>c</span><span>·</span><span>T</span><span>o</span><span>e</span></h1>
+    <p class="sub">Klasik tiga-dalam-satu-baris</p>
+
+    <div class="options">
+      <div class="mode-pick" id="mode">
+        <button data-mode="ai" class="active">Lawan Komputer</button>
+        <button data-mode="pvp">2 Pemain</button>
+      </div>
+
+      <div class="level-pick" id="level">
+        <button data-level="easy">Mudah</button>
+        <button data-level="medium" class="active">Sedang</button>
+        <button data-level="hard">Sulit</button>
+      </div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="score x" id="scoreX">
+        <div class="label">Pemain X</div>
+        <div class="value" id="winsX">0</div>
+        <div class="streak" id="streakX"></div>
+      </div>
+      <div class="score tie">
+        <div class="label">Seri</div>
+        <div class="value" id="ties">0</div>
+      </div>
+      <div class="score o" id="scoreO">
+        <div class="label" id="labelO">Komputer</div>
+        <div class="value" id="winsO">0</div>
+        <div class="streak" id="streakO"></div>
+      </div>
+    </div>
+
+    <div class="status" id="status" aria-live="polite" aria-atomic="true">Giliranmu, X!</div>
+
+    <div class="board">
+      <div class="grid" id="grid" role="grid" aria-label="Papan Tic Tac Toe"></div>
+      <div class="countdown" id="countdown" aria-hidden="true"></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="reset">Mulai Ulang</button>
+      <button class="btn" id="seriesBtn" title="Mode pertandingan seri">🏆 Seri: <span id="seriesLabel">Off</span></button>
+      <button class="btn primary" id="resetScore">Reset Skor</button>
+    </div>
+    <p id="seriesStatus" style="text-align:center;margin-top:0.5rem;font-size:0.8rem;opacity:0.85;font-weight:600"></p>
+
+    <p class="footer-hint">⌨️ Angka 1–9 untuk bermain · R = mulai ulang · Z = undo</p>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============= CONSTANTS =============
+  const STORAGE_KEY = 'tictactoe_v3';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  const winLines = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+
+  const keyMap = {
+    '7': 0, '8': 1, '9': 2,
+    '4': 3, '5': 4, '6': 5,
+    '1': 6, '2': 7, '3': 8
+  };
+  const numpadLabels = ['7','8','9','4','5','6','1','2','3'];
+
+  // ============= DOM =============
+  const grid = document.getElementById('grid');
+  const statusEl = document.getElementById('status');
+  const winsXEl = document.getElementById('winsX');
+  const winsOEl = document.getElementById('winsO');
+  const tiesEl = document.getElementById('ties');
+  const labelO = document.getElementById('labelO');
+  const scoreX = document.getElementById('scoreX');
+  const scoreO = document.getElementById('scoreO');
+  const streakXEl = document.getElementById('streakX');
+  const streakOEl = document.getElementById('streakO');
+  const soundToggle = document.getElementById('soundToggle');
+  const themeToggle = document.getElementById('themeToggle');
+  const undoBtn = document.getElementById('undoBtn');
+  const countdown = document.getElementById('countdown');
+
+  // ============= STATE =============
+  let board = Array(9).fill(null);
+  let cellEls = [];
+  let turn = 'X';
+  let mode = 'ai';
+  let level = 'medium';
+  let theme = 'light';
+  let gameOver = false;
+  let aiThinking = false;
+  let nextStarter = 'X';
+  let moveHistory = [];
+  let scores = { X: 0, O: 0, T: 0 };
+  let streak = { X: 0, O: 0 };
+  // Best-of series state: seriesType = 0 (off), 3 (BO3), 5 (BO5)
+  let seriesType = 0;
+  let seriesScore = { X: 0, O: 0 };  // wins within current series
+  let soundOn = true;
+  let roundTransitioning = false;
+
+  // Timer handles - tracked for proper cleanup
+  let aiTimerId = null;
+  let nextRoundTimerId = null;
+  let countdownTimerId = null;
+
+  // ============= PERSISTENCE =============
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        scores, streak, mode, level, theme, soundOn,
+        seriesType, seriesScore
+      }));
+    } catch(e) {}
+  }
+
+  function loadState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        // Validate numeric counter: must be non-negative finite number
+        const validInt = (v) =>
+          (typeof v === 'number' && v >= 0 && isFinite(v)) ? Math.floor(v) : 0;
+        scores = {
+          X: validInt(data.scores && data.scores.X),
+          O: validInt(data.scores && data.scores.O),
+          T: validInt(data.scores && data.scores.T)
+        };
+        streak = {
+          X: validInt(data.streak && data.streak.X),
+          O: validInt(data.streak && data.streak.O)
+        };
+        mode = ['ai', 'pvp'].includes(data.mode) ? data.mode : 'ai';
+        level = ['easy', 'medium', 'hard'].includes(data.level) ? data.level : 'medium';
+        theme = ['light', 'dark'].includes(data.theme) ? data.theme : 'light';
+        soundOn = data.soundOn !== false;
+        if ([0, 3, 5].includes(data.seriesType)) seriesType = data.seriesType;
+        if (data.seriesScore) {
+          seriesScore = {
+            X: validInt(data.seriesScore.X),
+            O: validInt(data.seriesScore.O)
+          };
+        }
+      }
+    } catch(e) {}
+  }
+
+  // ============= SOUND =============
+  let audioCtx = null;
+
+  function ensureAudio() {
+    if (!soundOn) return false;
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return false; }
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+    return true;
+  }
+
+  function playSound(type) {
+    if (!ensureAudio()) return;
+    const t = audioCtx.currentTime;
+
+    if (type === 'place' || type === 'ai') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      const baseFreq = type === 'place' ? 440 : 330;
+      o.frequency.setValueAtTime(baseFreq, t);
+      o.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, t + 0.08);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+      o.start(t); o.stop(t + 0.13);
+    } else if (type === 'win') {
+      [523, 659, 784, 1046].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gn = audioCtx.createGain();
+        osc.connect(gn); gn.connect(audioCtx.destination);
+        osc.frequency.setValueAtTime(freq, t + i * 0.1);
+        gn.gain.setValueAtTime(0.12, t + i * 0.1);
+        gn.gain.exponentialRampToValueAtTime(0.01, t + i * 0.1 + 0.3);
+        osc.start(t + i * 0.1); osc.stop(t + i * 0.1 + 0.32);
+      });
+    } else if (type === 'lose') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.setValueAtTime(330, t);
+      o.frequency.exponentialRampToValueAtTime(165, t + 0.4);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+      o.start(t); o.stop(t + 0.42);
+    } else if (type === 'tie') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.setValueAtTime(400, t);
+      g.gain.setValueAtTime(0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+      o.start(t); o.stop(t + 0.32);
+    } else if (type === 'undo') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.setValueAtTime(600, t);
+      o.frequency.exponentialRampToValueAtTime(400, t + 0.1);
+      g.gain.setValueAtTime(0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+      o.start(t); o.stop(t + 0.12);
+    }
+  }
+
+  // ============= SVG (safe, no innerHTML) =============
+  function createMark(mark) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', mark === 'X' ? 'x-mark' : 'o-mark');
+    if (mark === 'X') {
+      const l1 = document.createElementNS(SVG_NS, 'line');
+      l1.setAttribute('x1', '20'); l1.setAttribute('y1', '20');
+      l1.setAttribute('x2', '80'); l1.setAttribute('y2', '80');
+      const l2 = document.createElementNS(SVG_NS, 'line');
+      l2.setAttribute('x1', '80'); l2.setAttribute('y1', '20');
+      l2.setAttribute('x2', '20'); l2.setAttribute('y2', '80');
+      g.appendChild(l1); g.appendChild(l2);
+    } else {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('cx', '50'); c.setAttribute('cy', '50'); c.setAttribute('r', '35');
+      g.appendChild(c);
+    }
+    svg.appendChild(g);
+    return svg;
+  }
+
+  // ============= BUILD GRID ONCE =============
+  function buildGrid() {
+    grid.innerHTML = '';
+    cellEls = [];
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('button');
+      cell.className = 'cell';
+      cell.setAttribute('aria-label', `Kotak ${i + 1}, kosong`);
+      cell.setAttribute('role', 'gridcell');
+
+      const hint = document.createElement('span');
+      hint.className = 'key-hint';
+      hint.textContent = numpadLabels[i];
+      cell.appendChild(hint);
+
+      cell.addEventListener('click', () => handleMove(i));
+      grid.appendChild(cell);
+      cellEls.push(cell);
+    }
+  }
+
+  // Track per-cell drawing timer so rapid updates don't strip the class prematurely
+  const drawingTimers = new Map();
+
+  function updateCell(i, mark, animate = true) {
+    const cell = cellEls[i];
+    // Cancel any pending drawing-class removal for this cell
+    if (drawingTimers.has(i)) {
+      clearTimeout(drawingTimers.get(i));
+      drawingTimers.delete(i);
+    }
+    const oldSvg = cell.querySelector('svg');
+    if (oldSvg) oldSvg.remove();
+    cell.classList.remove('drawing');
+
+    if (mark) {
+      cell.classList.add('filled');
+      cell.setAttribute('aria-label', `Kotak ${i + 1}, diisi ${mark}`);
+      cell.appendChild(createMark(mark));
+      if (animate) {
+        // Force reflow then add class so animation re-triggers
+        void cell.offsetWidth;
+        cell.classList.add('drawing');
+        const tid = setTimeout(() => {
+          cell.classList.remove('drawing');
+          drawingTimers.delete(i);
+        }, 500);
+        drawingTimers.set(i, tid);
+      }
+    } else {
+      cell.classList.remove('filled', 'win');
+      cell.setAttribute('aria-label', `Kotak ${i + 1}, kosong`);
+    }
+  }
+
+  function updateAllLocks() {
+    const locked = aiThinking || gameOver || roundTransitioning;
+    cellEls.forEach((cell, i) => {
+      cell.classList.toggle('locked', locked || !!board[i]);
+    });
+  }
+
+  function clearWinDisplay() {
+    cellEls.forEach(c => c.classList.remove('win'));
+    const lineEl = grid.querySelector('.win-line');
+    if (lineEl) lineEl.remove();
+  }
+
+  function updateActive() {
+    scoreX.classList.toggle('active', turn === 'X' && !gameOver);
+    scoreO.classList.toggle('active', turn === 'O' && !gameOver);
+  }
+
+  function updateStatus() {
+    if (gameOver) return;
+    statusEl.classList.remove('thinking', 'win', 'lose');
+    if (mode === 'ai') {
+      if (turn === 'X') {
+        statusEl.textContent = 'Giliranmu, X!';
+      } else {
+        statusEl.innerHTML = '';
+        statusEl.appendChild(document.createTextNode('Komputer berpikir '));
+        const dots = document.createElement('span');
+        dots.className = 'thinking-dots';
+        for (let i = 0; i < 3; i++) {
+          const s = document.createElement('span');
+          s.textContent = '.';
+          dots.appendChild(s);
+        }
+        statusEl.appendChild(dots);
+        statusEl.classList.add('thinking');
+      }
+    } else {
+      statusEl.textContent = `Giliran ${turn}`;
+    }
+  }
+
+  function canUndo() {
+    if (gameOver || aiThinking || roundTransitioning) return false;
+    if (mode === 'pvp') return moveHistory.length > 0;
+    return moveHistory.length >= 2 && turn === 'X';
+  }
+
+  function updateUndoButton() {
+    undoBtn.disabled = !canUndo();
+  }
+
+  // ============= TIMER CLEANUP =============
+  function clearAllTimers() {
+    if (aiTimerId) { clearTimeout(aiTimerId); aiTimerId = null; }
+    if (nextRoundTimerId) { clearTimeout(nextRoundTimerId); nextRoundTimerId = null; }
+    if (countdownTimerId) { clearTimeout(countdownTimerId); countdownTimerId = null; }
+  }
+
+  // ============= MOVES =============
+  function handleMove(i) {
+    if (gameOver || aiThinking || roundTransitioning) return;
+    if (board[i]) return;
+    if (mode === 'ai' && turn === 'O') return;
+
+    ensureAudio();
+    makeMove(i, turn);
+    playSound('place');
+
+    if (!gameOver && mode === 'ai') {
+      aiThinking = true;
+      updateAllLocks();
+      updateStatus();
+      updateUndoButton();
+      aiTimerId = setTimeout(() => {
+        aiTimerId = null;
+        if (gameOver || mode !== 'ai') return; // mode might have changed
+        aiThinking = false;
+        aiMove();
+        updateUndoButton();
+      }, 500);
+    } else {
+      updateUndoButton();
+    }
+  }
+
+  function makeMove(i, player) {
+    board[i] = player;
+    moveHistory.push(i);
+    updateCell(i, player, true);
+
+    const winInfo = checkWin();
+    if (winInfo) {
+      gameOver = true;
+      scores[player]++;
+      streak[player]++;
+      streak[player === 'X' ? 'O' : 'X'] = 0;
+      // Series tracking
+      if (seriesType > 0) {
+        seriesScore[player]++;
+      }
+      saveState();
+      updateScores();
+      updateSeriesStatus();
+
+      requestAnimationFrame(() => drawWinLine(winInfo));
+      winInfo.forEach(idx => cellEls[idx].classList.add('win'));
+
+      statusEl.classList.remove('thinking');
+
+      if (mode === 'ai' && player === 'O') {
+        statusEl.classList.add('lose');
+        statusEl.textContent = 'Komputer menang! 😼';
+        playSound('lose');
+        nextStarter = 'X';
+      } else {
+        statusEl.classList.add('win');
+        statusEl.textContent = `Pemain ${player} menang! 🎉`;
+        playSound('win');
+        celebrate();
+        nextStarter = mode === 'pvp' ? (player === 'X' ? 'O' : 'X') : 'X';
+        // GameHub: only count it when a human wins (AI wins shouldn't reward).
+        if (window.GameHub) {
+          window.GameHub.notify('g2_win', { streak: streak[player] });
+          window.GameHub.notify('game_start', { gameId: 2 });
+          window.GameHub.coins.add(20);
+        }
+      }
+      updateAllLocks();
+      // If a Best-Of series has been won, stop auto-scheduling — wait for manual reset.
+      if (!isSeriesComplete()) {
+        scheduleNextRound();
+      } else {
+        announceSeriesWinner();
+      }
+      return;
+    }
+
+    if (board.every(c => c)) {
+      gameOver = true;
+      scores.T++;
+      streak.X = 0;
+      streak.O = 0;
+      saveState();
+      updateScores();
+      statusEl.textContent = 'Seri! 🤝';
+      playSound('tie');
+      nextStarter = mode === 'pvp' ? (nextStarter === 'X' ? 'O' : 'X') : 'X';
+      updateAllLocks();
+      if (!isSeriesComplete()) {
+        scheduleNextRound();
+      } else {
+        announceSeriesWinner();
+      }
+      return;
+    }
+
+    turn = turn === 'X' ? 'O' : 'X';
+    updateAllLocks();
+    updateActive();
+    updateStatus();
+  }
+
+  function checkWin(b = board) {
+    for (const line of winLines) {
+      const [a, bb, c] = line;
+      if (b[a] && b[a] === b[bb] && b[a] === b[c]) {
+        return line;
+      }
+    }
+    return null;
+  }
+
+  // ============= UNDO =============
+  function undo() {
+    if (!canUndo()) return;
+    if (mode === 'ai') {
+      if (moveHistory.length < 2) return;
+      for (let k = 0; k < 2; k++) {
+        const lastIdx = moveHistory.pop();
+        board[lastIdx] = null;
+        updateCell(lastIdx, null, false);
+      }
+      turn = 'X';
+    } else {
+      const lastIdx = moveHistory.pop();
+      board[lastIdx] = null;
+      updateCell(lastIdx, null, false);
+      turn = turn === 'X' ? 'O' : 'X';
+    }
+    playSound('undo');
+    updateAllLocks();
+    updateActive();
+    updateStatus();
+    updateUndoButton();
+  }
+
+  // ============= SERIES HELPERS =============
+  function isSeriesComplete() {
+    if (seriesType === 0) return false;
+    const needed = Math.ceil(seriesType / 2);
+    return seriesScore.X >= needed || seriesScore.O >= needed;
+  }
+  function announceSeriesWinner() {
+    const needed = Math.ceil(seriesType / 2);
+    const winner = seriesScore.X >= needed ? 'X' : 'O';
+    const winnerName = (mode === 'ai' && winner === 'O') ? 'Komputer' : `Pemain ${winner}`;
+    statusEl.classList.remove('thinking');
+    statusEl.classList.add('win');
+    statusEl.innerHTML = `🏆 ${winnerName} memenangi seri BO${seriesType}! ${seriesScore.X}–${seriesScore.O}`;
+    // Block further auto-rounds until user manually changes series mode or resets the series.
+  }
+
+  // ============= ROUND TRANSITION =============
+  function scheduleNextRound() {
+    roundTransitioning = true;
+    updateUndoButton();
+    nextRoundTimerId = setTimeout(() => {
+      nextRoundTimerId = null;
+      showCountdown(() => {
+        roundTransitioning = false;
+        resetBoardInternal();
+      });
+    }, 1800);
+  }
+
+  function cancelTransition() {
+    clearAllTimers();
+    countdown.classList.remove('show');
+    countdown.innerHTML = '';
+    roundTransitioning = false;
+    aiThinking = false;
+  }
+
+  function showCountdown(onDone) {
+    let n = 3;
+    countdown.classList.add('show');
+
+    const renderNum = () => {
+      // Create fresh node each time so animation re-triggers
+      countdown.innerHTML = '';
+      const numEl = document.createElement('div');
+      numEl.className = 'countdown-num';
+      numEl.textContent = n;
+      countdown.appendChild(numEl);
+    };
+
+    renderNum();
+
+    const step = () => {
+      countdownTimerId = null;
+      n--;
+      if (n > 0) {
+        renderNum();
+        countdownTimerId = setTimeout(step, 700);
+      } else {
+        countdown.classList.remove('show');
+        countdown.innerHTML = '';
+        onDone();
+      }
+    };
+    countdownTimerId = setTimeout(step, 700);
+  }
+
+  // ============= WIN LINE =============
+  function drawWinLine(line) {
+    const existing = grid.querySelector('.win-line');
+    if (existing) existing.remove();
+
+    if (!cellEls[line[0]] || !cellEls[line[2]]) return;
+
+    const first = cellEls[line[0]].getBoundingClientRect();
+    const last = cellEls[line[2]].getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+
+    const x1 = first.left + first.width / 2 - gridRect.left;
+    const y1 = first.top + first.height / 2 - gridRect.top;
+    const x2 = last.left + last.width / 2 - gridRect.left;
+    const y2 = last.top + last.height / 2 - gridRect.top;
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+    const lineEl = document.createElement('div');
+    lineEl.className = 'win-line';
+    lineEl.style.left = x1 + 'px';
+    lineEl.style.top = (y1 - 4) + 'px';
+    lineEl.style.width = '0px';
+    lineEl.style.transformOrigin = '0 50%';
+    lineEl.style.transform = `rotate(${angle}deg)`;
+    grid.appendChild(lineEl);
+
+    lineEl.animate(
+      [{ width: '0px' }, { width: length + 'px' }],
+      { duration: 500, easing: 'cubic-bezier(.5, 0, .3, 1.2)', fill: 'forwards' }
+    );
+  }
+
+  function updateScores() {
+    winsXEl.textContent = scores.X;
+    winsOEl.textContent = scores.O;
+    tiesEl.textContent = scores.T;
+    streakXEl.textContent = streak.X >= 2 ? `🔥 ${streak.X}` : '';
+    streakOEl.textContent = streak.O >= 2 ? `🔥 ${streak.O}` : '';
+    streakXEl.classList.toggle('show', streak.X >= 2);
+    streakOEl.classList.toggle('show', streak.O >= 2);
+  }
+
+  // ============= AI =============
+  function aiMove() {
+    if (gameOver) return;
+    let move;
+
+    if (level === 'easy') {
+      if (Math.random() < 0.7) {
+        move = randomMove();
+      } else {
+        move = findTacticalMove();
+        if (move === null) move = randomMove();
+      }
+    } else if (level === 'medium') {
+      const tactical = findTacticalMove();
+      if (tactical !== null) {
+        move = tactical;
+      } else if (Math.random() < 0.4) {
+        move = randomMove();
+      } else {
+        move = findBestMove();
+      }
+    } else {
+      move = findBestMove();
+    }
+
+    if (move !== null && move !== undefined) {
+      makeMove(move, 'O');
+      playSound('ai');
+    }
+  }
+
+  function randomMove() {
+    const empty = board.map((c, i) => c ? null : i).filter(i => i !== null);
+    if (empty.length === 0) return null;
+    return empty[Math.floor(Math.random() * empty.length)];
+  }
+
+  function findTacticalMove() {
+    const b = [...board];
+    for (let i = 0; i < 9; i++) {
+      if (!b[i]) {
+        b[i] = 'O';
+        if (checkWin(b)) return i;
+        b[i] = null;
+      }
+    }
+    for (let i = 0; i < 9; i++) {
+      if (!b[i]) {
+        b[i] = 'X';
+        if (checkWin(b)) return i;
+        b[i] = null;
+      }
+    }
+    return null;
+  }
+
+  function findBestMove() {
+    let bestScore = -Infinity;
+    let bestMoves = [];
+    const b = [...board];
+    for (let i = 0; i < 9; i++) {
+      if (!b[i]) {
+        b[i] = 'O';
+        const score = minimax(b, 0, false);
+        b[i] = null;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMoves = [i];
+        } else if (score === bestScore) {
+          bestMoves.push(i);
+        }
+      }
+    }
+    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+  }
+
+  function minimax(b, depth, isMax) {
+    const result = checkWin(b);
+    if (result) {
+      const winner = b[result[0]];
+      if (winner === 'O') return 10 - depth;
+      if (winner === 'X') return depth - 10;
+    }
+    if (b.every(c => c)) return 0;
+
+    if (isMax) {
+      let best = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!b[i]) {
+          b[i] = 'O';
+          best = Math.max(best, minimax(b, depth + 1, false));
+          b[i] = null;
+        }
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!b[i]) {
+          b[i] = 'X';
+          best = Math.min(best, minimax(b, depth + 1, true));
+          b[i] = null;
+        }
+      }
+      return best;
+    }
+  }
+
+  // ============= CONFETTI (page visibility aware) =============
+  function celebrate() {
+    if (document.hidden) return; // skip when tab not visible
+    const colors = ['#ea4335', '#fbbc04', '#34a853', '#4285f4', '#ff6f61'];
+    for (let i = 0; i < 40; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.style.background = colors[Math.floor(Math.random() * colors.length)];
+      c.style.left = '50%';
+      c.style.top = '50%';
+      c.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      document.body.appendChild(c);
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 150 + Math.random() * 200;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      const anim = c.animate([
+        { transform: 'translate(-50%, -50%) rotate(0)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+      ], { duration: 1000 + Math.random() * 500, easing: 'cubic-bezier(.2,.6,.4,1)' });
+      anim.onfinish = () => c.remove();
+    }
+  }
+
+  // ============= RESET =============
+  function resetBoardInternal() {
+    board = Array(9).fill(null);
+    moveHistory = [];
+    turn = nextStarter;
+    gameOver = false;
+    aiThinking = false;
+
+    for (let i = 0; i < 9; i++) {
+      updateCell(i, null, false);
+    }
+    clearWinDisplay();
+    updateAllLocks();
+    updateActive();
+    updateStatus();
+    updateUndoButton();
+  }
+
+  function resetBoard() {
+    cancelTransition();
+    // Manual reset: fresh start. In AI mode always X. In PvP, X starts unless this
+    // is a continuation after auto-transition (handled by resetBoardInternal directly).
+    nextStarter = 'X';
+    // If a series has been won, manual reset also starts a NEW series with the same type.
+    if (seriesType > 0 && isSeriesComplete()) {
+      seriesScore = { X: 0, O: 0 };
+      saveState();
+      updateSeriesStatus();
+    }
+    resetBoardInternal();
+  }
+
+  // ============= THEME =============
+  function updateSeriesStatus() {
+    const label = document.getElementById('seriesLabel');
+    const status = document.getElementById('seriesStatus');
+    if (!label || !status) return;
+    if (seriesType === 0) {
+      label.textContent = 'Off';
+      status.textContent = '';
+      return;
+    }
+    label.textContent = `BO${seriesType}`;
+    const needed = Math.ceil(seriesType / 2);
+    if (seriesScore.X >= needed) {
+      status.innerHTML = `🏆 <b>Pemain X memenangi seri BO${seriesType}!</b> (${seriesScore.X}–${seriesScore.O})`;
+      status.style.color = 'var(--x-color)';
+    } else if (seriesScore.O >= needed) {
+      const winnerName = (typeof mode !== 'undefined' && mode === 'ai') ? 'Komputer' : 'Pemain O';
+      status.innerHTML = `🏆 <b>${winnerName} memenangi seri BO${seriesType}!</b> (${seriesScore.O}–${seriesScore.X})`;
+      status.style.color = 'var(--o-color)';
+    } else {
+      status.innerHTML = `Seri BO${seriesType} — <b>${seriesScore.X}</b> – <b>${seriesScore.O}</b> (butuh ${needed} kemenangan)`;
+      status.style.color = '';
+    }
+  }
+  function cycleSeriesMode() {
+    // Confirm before wiping mid-series progress
+    if (seriesType > 0 && !isSeriesComplete() && (seriesScore.X > 0 || seriesScore.O > 0)) {
+      if (!confirm(`Ganti mode seri? Skor seri BO${seriesType} (${seriesScore.X}–${seriesScore.O}) akan terhapus.`)) {
+        return;
+      }
+    }
+    const next = { 0: 3, 3: 5, 5: 0 };
+    seriesType = next[seriesType];
+    seriesScore = { X: 0, O: 0 };
+    updateSeriesStatus();
+    saveState();
+  }
+
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', theme);
+    themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
+    themeToggle.setAttribute('aria-label', theme === 'light' ? 'Ganti ke tema gelap' : 'Ganti ke tema terang');
+    themeToggle.setAttribute('aria-pressed', String(theme === 'dark'));
+  }
+
+  // ============= EVENTS =============
+  document.getElementById('reset').addEventListener('click', resetBoard);
+  document.getElementById('seriesBtn').addEventListener('click', cycleSeriesMode);
+
+  document.getElementById('resetScore').addEventListener('click', () => {
+    // Confirm before wiping all scores so a stray click doesn't erase progress
+    if (scores.X === 0 && scores.O === 0 && scores.T === 0) return;
+    if (!confirm('Hapus semua skor (X, O, dan Seri)?')) return;
+    scores = { X: 0, O: 0, T: 0 };
+    streak = { X: 0, O: 0 };
+    seriesScore = { X: 0, O: 0 };
+    nextStarter = 'X';
+    saveState();
+    updateScores();
+    updateSeriesStatus();
+    resetBoard();
+  });
+
+  document.getElementById('mode').addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    const newMode = e.target.dataset.mode;
+    if (!['ai', 'pvp'].includes(newMode)) return;
+    if (newMode === mode) return;
+
+    document.querySelectorAll('#mode button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    mode = newMode;
+    labelO.textContent = mode === 'ai' ? 'Komputer' : 'Pemain O';
+    document.getElementById('level').classList.toggle('hidden', mode !== 'ai');
+    nextStarter = 'X';
+    // Reset streak when switching modes (different opponent type)
+    streak = { X: 0, O: 0 };
+    updateScores();
+    saveState();
+    resetBoard();
+  });
+
+  document.getElementById('level').addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    const newLevel = e.target.dataset.level;
+    if (!['easy', 'medium', 'hard'].includes(newLevel)) return;
+    document.querySelectorAll('#level button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    level = newLevel;
+    saveState();
+  });
+
+  function updateSoundButton() {
+    soundToggle.textContent = soundOn ? '🔊' : '🔇';
+    soundToggle.setAttribute('aria-label', soundOn ? 'Matikan suara' : 'Nyalakan suara');
+    soundToggle.setAttribute('aria-pressed', String(soundOn));
+  }
+
+  soundToggle.addEventListener('click', () => {
+    soundOn = !soundOn;
+    updateSoundButton();
+    saveState();
+    if (soundOn) ensureAudio();
+  });
+
+  themeToggle.addEventListener('click', () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    applyTheme();
+    saveState();
+  });
+
+  undoBtn.addEventListener('click', undo);
+
+  document.addEventListener('keydown', (e) => {
+    // Ignore if user is typing in an input
+    if (e.target.matches('input, textarea')) return;
+    // Ignore modified keys (Ctrl+R, Cmd+Z, etc) so browser shortcuts work normally
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    if (e.key === 'r' || e.key === 'R') {
+      resetBoard();
+      return;
+    }
+    if (e.key === 'z' || e.key === 'Z') {
+      if (canUndo()) undo();
+      return;
+    }
+    if (keyMap.hasOwnProperty(e.key)) {
+      handleMove(keyMap[e.key]);
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    if (gameOver) {
+      const winInfo = checkWin();
+      if (winInfo) drawWinLine(winInfo);
+    }
+  });
+
+  // Pause/resume audio when tab hidden so the audio context doesn't drift / stay suspended
+  document.addEventListener('visibilitychange', () => {
+    if (!audioCtx) return;
+    if (document.hidden && audioCtx.state === 'running') {
+      audioCtx.suspend().catch(() => {});
+    } else if (!document.hidden && audioCtx.state === 'suspended' && soundOn) {
+      audioCtx.resume().catch(() => {});
+    }
+  });
+
+  // ============= INIT =============
+  loadState();
+  applyTheme();
+  updateSoundButton();
+  updateSeriesStatus();
+
+  document.querySelectorAll('#mode button').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  document.querySelectorAll('#level button').forEach(b => {
+    b.classList.toggle('active', b.dataset.level === level);
+  });
+  labelO.textContent = mode === 'ai' ? 'Komputer' : 'Pemain O';
+  document.getElementById('level').classList.toggle('hidden', mode !== 'ai');
+
+  buildGrid();
+  updateScores();
+  resetBoardInternal();
+})();
+</script>
+</body>
+</html>

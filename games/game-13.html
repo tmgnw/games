@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Match-3 Mania</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #2d1b3d;
+    --panel: #3d2750;
+    --text: #f0e0ff;
+    --accent: #f8bbd0;
+    --gold: #ffd54f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body {
+    background: linear-gradient(180deg, #4a2860 0%, var(--bg) 100%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 1rem;
+    user-select: none;
+    touch-action: none;
+  }
+  .top-bar {
+    width: 100%; max-width: 480px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .logo { font-weight: 800; font-size: 1.25rem; }
+  .logo .accent { color: var(--accent); }
+  .top-controls { display: flex; gap: 0.4rem; }
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none; cursor: pointer;
+    color: var(--text); font-size: 1rem;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.18); }
+  .stats {
+    width: 100%; max-width: 480px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem; margin-bottom: 0.6rem;
+  }
+  .stat {
+    background: rgba(0,0,0,0.3); border-radius: 10px;
+    padding: 0.45rem 0.5rem; text-align: center;
+  }
+  .stat-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; opacity: 0.65; }
+  .stat-value { font-size: 1.05rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .stat-value.high { color: var(--gold); }
+  .stage {
+    position: relative;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 0.6rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, var(--m3-cell));
+    grid-template-rows: repeat(8, var(--m3-cell));
+    gap: 2px;
+    background: rgba(0,0,0,0.25);
+    padding: 4px;
+    border-radius: 6px;
+    --m3-cell: 36px;
+  }
+  .gem {
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    background: rgba(255,255,255,0.05);
+  }
+  .gem:hover { background: rgba(255,255,255,0.1); }
+  .gem.selected { box-shadow: inset 0 0 0 3px var(--gold); transform: scale(0.9); }
+  .gem.matched { animation: pop 0.3s forwards; }
+  @keyframes pop {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  .gem.fall { animation: fall 0.3s; }
+  @keyframes fall {
+    0% { transform: translateY(-50%); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(20, 10, 30, 0.95);
+    border-radius: 12px;
+    display: none;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 1.2rem;
+    backdrop-filter: blur(4px);
+    z-index: 5;
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 { font-size: 1.5rem; margin-bottom: 0.4rem; }
+  .overlay p { opacity: 0.8; font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.4; }
+  .overlay button {
+    background: var(--accent);
+    color: #2d2d2d;
+    border: none;
+    padding: 0.6rem 1.4rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .combo-toast {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-weight: 800;
+    font-size: 1.5rem;
+    color: var(--gold);
+    pointer-events: none;
+    opacity: 0;
+    text-shadow: 0 0 8px rgba(0,0,0,0.7);
+    z-index: 4;
+    transition: opacity 0.2s, transform 0.3s;
+  }
+  .mode-pick {
+    display: flex; gap: 0.4rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255,255,255,0.06);
+    padding: 4px; border-radius: 999px;
+  }
+  .mode-pick button {
+    background: transparent; border: none;
+    color: var(--text); padding: 5px 14px;
+    border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-weight: 600; font-size: 0.78rem;
+  }
+  .mode-pick button.active { background: var(--accent); color: #2d2d2d; }
+  .back-link {
+    position: absolute;
+    top: 0.5rem; left: 0.5rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.78rem;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+  <a href="../index.html" class="back-link">← Kembali</a>
+  <div class="top-bar">
+    <div class="logo">🍬 Match<span class="accent">3</span></div>
+    <div class="top-controls">
+      <button class="icon-btn" id="newBtn" title="Permainan baru">🔄</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Skor</div>
+      <div class="stat-value" id="scoreEl">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label" id="rightLabel">Waktu</div>
+      <div class="stat-value" id="rightVal">60</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Best</div>
+      <div class="stat-value high" id="bestEl">0</div>
+    </div>
+  </div>
+
+  <div class="mode-pick">
+    <button data-mode="timed" class="active">⏱️ Timed</button>
+    <button data-mode="moves">🎯 50 Moves</button>
+    <button data-mode="zen">🧘 Zen</button>
+  </div>
+
+  <div class="stage">
+    <div class="board" id="board"></div>
+    <div class="combo-toast" id="comboToast"></div>
+    <div class="overlay" id="overlay">
+      <h2 id="overTitle">Permainan Berakhir</h2>
+      <p id="overSub"></p>
+      <button id="restartBtn">Main Lagi</button>
+    </div>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+  const STORAGE_KEY = 'match3_v1';
+  const ROWS = 8, COLS = 8;
+  const GEMS = ['🍒','🍇','🍋','🍊','🫐','🍉']; // 6 gem types
+  const TIMED_DURATION = 60; // seconds
+  const MOVES_LIMIT = 50;
+
+  let board = [];          // grid of gem indices
+  let selected = null;
+  let score = 0;
+  let best = 0;
+  let mode = 'timed';
+  let timeLeft = TIMED_DURATION;
+  let movesLeft = MOVES_LIMIT;
+  let timerId = null;
+  let comboCount = 0;
+  let gameOver = false;
+  let busy = false; // during cascade animation
+
+  const boardEl = document.getElementById('board');
+  const scoreEl = document.getElementById('scoreEl');
+  const bestEl = document.getElementById('bestEl');
+  const rightLabel = document.getElementById('rightLabel');
+  const rightVal = document.getElementById('rightVal');
+  const overlay = document.getElementById('overlay');
+  const overTitle = document.getElementById('overTitle');
+  const overSub = document.getElementById('overSub');
+  const comboToast = document.getElementById('comboToast');
+
+  function load() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data && typeof data.best === 'number') best = data.best;
+    } catch(e) {}
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ best })); }
+    catch(e) {}
+  }
+
+  // ----- Board logic -----
+  function randomGem() { return Math.floor(Math.random() * GEMS.length); }
+
+  function createBoardNoMatches() {
+    const b = [];
+    for (let y = 0; y < ROWS; y++) {
+      b[y] = [];
+      for (let x = 0; x < COLS; x++) {
+        let g;
+        let tries = 0;
+        do {
+          g = randomGem();
+          tries++;
+        } while (tries < 20 && (
+          (x >= 2 && b[y][x-1] === g && b[y][x-2] === g) ||
+          (y >= 2 && b[y-1][x] === g && b[y-2][x] === g)
+        ));
+        b[y][x] = g;
+      }
+    }
+    return b;
+  }
+
+  function findMatches() {
+    const matched = Array.from({length: ROWS}, () => Array(COLS).fill(false));
+    // Horizontal
+    for (let y = 0; y < ROWS; y++) {
+      let run = 1;
+      for (let x = 1; x <= COLS; x++) {
+        const sameAsPrev = x < COLS && board[y][x] !== null && board[y][x] === board[y][x-1];
+        if (sameAsPrev) {
+          run++;
+        } else {
+          if (run >= 3) {
+            for (let k = x - run; k < x; k++) matched[y][k] = true;
+          }
+          run = 1;
+        }
+      }
+    }
+    // Vertical
+    for (let x = 0; x < COLS; x++) {
+      let run = 1;
+      for (let y = 1; y <= ROWS; y++) {
+        const sameAsPrev = y < ROWS && board[y][x] !== null && board[y][x] === board[y-1][x];
+        if (sameAsPrev) {
+          run++;
+        } else {
+          if (run >= 3) {
+            for (let k = y - run; k < y; k++) matched[k][x] = true;
+          }
+          run = 1;
+        }
+      }
+    }
+    return matched;
+  }
+
+  function countMatched(matched) {
+    let n = 0;
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (matched[y][x]) n++;
+    return n;
+  }
+
+  function clearMatches(matched) {
+    let n = 0;
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        if (matched[y][x]) { board[y][x] = null; n++; }
+      }
+    }
+    return n;
+  }
+
+  function gravity() {
+    for (let x = 0; x < COLS; x++) {
+      // Compact column (move nulls to top)
+      const col = [];
+      for (let y = 0; y < ROWS; y++) {
+        if (board[y][x] !== null) col.push(board[y][x]);
+      }
+      while (col.length < ROWS) col.unshift(randomGem());
+      for (let y = 0; y < ROWS; y++) board[y][x] = col[y];
+    }
+  }
+
+  // ----- Rendering -----
+  function render() {
+    // Determine cell size based on viewport
+    const cellSize = Math.max(28, Math.min(48,
+      Math.floor((window.innerWidth - 60) / COLS),
+      Math.floor((window.innerHeight - 320) / ROWS)
+    ));
+    boardEl.style.setProperty('--m3-cell', cellSize + 'px');
+    boardEl.innerHTML = '';
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const g = document.createElement('div');
+        g.className = 'gem';
+        g.style.width = cellSize + 'px';
+        g.style.height = cellSize + 'px';
+        g.style.fontSize = (cellSize * 0.65) + 'px';
+        const gem = board[y][x];
+        if (gem !== null) g.textContent = GEMS[gem];
+        g.dataset.x = x;
+        g.dataset.y = y;
+        if (selected && selected.x === x && selected.y === y) g.classList.add('selected');
+        g.addEventListener('click', () => onClickGem(x, y));
+        // Touch swipe
+        let touchStart = null;
+        g.addEventListener('touchstart', (e) => {
+          if (e.touches.length !== 1) return;
+          touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }, { passive: true });
+        g.addEventListener('touchend', (e) => {
+          if (!touchStart) return;
+          const t = e.changedTouches[0];
+          const dx = t.clientX - touchStart.x;
+          const dy = t.clientY - touchStart.y;
+          touchStart = null;
+          if (Math.abs(dx) < 15 && Math.abs(dy) < 15) {
+            onClickGem(x, y);
+            return;
+          }
+          let tx = x, ty = y;
+          if (Math.abs(dx) > Math.abs(dy)) tx += dx > 0 ? 1 : -1;
+          else ty += dy > 0 ? 1 : -1;
+          if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return;
+          trySwap({ x, y }, { x: tx, y: ty });
+        });
+        boardEl.appendChild(g);
+      }
+    }
+  }
+
+  function onClickGem(x, y) {
+    if (busy || gameOver) return;
+    if (!selected) {
+      selected = { x, y };
+      render();
+      return;
+    }
+    if (selected.x === x && selected.y === y) {
+      selected = null;
+      render();
+      return;
+    }
+    // Must be adjacent
+    const dx = Math.abs(selected.x - x);
+    const dy = Math.abs(selected.y - y);
+    if (dx + dy !== 1) {
+      selected = { x, y };
+      render();
+      return;
+    }
+    trySwap(selected, { x, y });
+  }
+
+  function trySwap(a, b) {
+    if (busy) return;
+    const tmp = board[a.y][a.x];
+    board[a.y][a.x] = board[b.y][b.x];
+    board[b.y][b.x] = tmp;
+    const m = findMatches();
+    if (countMatched(m) === 0) {
+      // Swap back
+      const tmp2 = board[a.y][a.x];
+      board[a.y][a.x] = board[b.y][b.x];
+      board[b.y][b.x] = tmp2;
+      selected = null;
+      render();
+      shake();
+      return;
+    }
+    selected = null;
+    comboCount = 0;
+    if (mode === 'moves') {
+      movesLeft--;
+      updateStats();
+      if (movesLeft <= 0) {
+        // Check final cascade before ending
+      }
+    }
+    cascade();
+  }
+
+  function shake() {
+    boardEl.animate([
+      { transform: 'translateX(0)' },
+      { transform: 'translateX(-6px)' },
+      { transform: 'translateX(6px)' },
+      { transform: 'translateX(0)' }
+    ], { duration: 200 });
+  }
+
+  function showCombo(text) {
+    comboToast.textContent = text;
+    comboToast.style.opacity = '1';
+    comboToast.style.transform = 'translate(-50%, -50%) scale(1.3)';
+    setTimeout(() => {
+      comboToast.style.transform = 'translate(-50%, -50%) scale(1)';
+    }, 80);
+    setTimeout(() => { comboToast.style.opacity = '0'; }, 800);
+  }
+
+  async function cascade() {
+    busy = true;
+    while (true) {
+      const m = findMatches();
+      const n = countMatched(m);
+      if (n === 0) break;
+      comboCount++;
+      // Score: base 10 per gem + combo multiplier
+      const points = n * 10 * comboCount;
+      score += points;
+      updateStats();
+      if (comboCount >= 2) {
+        showCombo(`Combo ×${comboCount}! +${points}`);
+      } else if (n >= 5) {
+        showCombo(`+${points}!`);
+      }
+      if (window.GameHub && comboCount >= 10) {
+        window.GameHub.notify('g13_combo', { combo: comboCount });
+      }
+      // Animate matched cells
+      const gems = boardEl.querySelectorAll('.gem');
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (m[y][x]) {
+            const idx = y * COLS + x;
+            if (gems[idx]) gems[idx].classList.add('matched');
+          }
+        }
+      }
+      await sleep(280);
+      clearMatches(m);
+      gravity();
+      render();
+      await sleep(150);
+    }
+    busy = false;
+    // Update best / check end conditions
+    if (score > best) {
+      best = score;
+      save();
+      bestEl.textContent = best;
+    }
+    if (mode === 'moves' && movesLeft <= 0) {
+      endGame();
+    }
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function updateStats() {
+    scoreEl.textContent = score;
+    bestEl.textContent = best;
+    if (mode === 'timed') {
+      rightLabel.textContent = 'Waktu';
+      rightVal.textContent = Math.max(0, timeLeft);
+    } else if (mode === 'moves') {
+      rightLabel.textContent = 'Moves';
+      rightVal.textContent = Math.max(0, movesLeft);
+    } else {
+      rightLabel.textContent = 'Mode';
+      rightVal.textContent = 'Zen';
+    }
+  }
+
+  function startTimer() {
+    if (timerId) clearInterval(timerId);
+    if (mode !== 'timed') return;
+    timeLeft = TIMED_DURATION;
+    updateStats();
+    timerId = setInterval(() => {
+      if (gameOver) return;
+      timeLeft--;
+      updateStats();
+      if (timeLeft <= 0) {
+        clearInterval(timerId);
+        timerId = null;
+        if (!busy) endGame();
+        else setTimeout(endGame, 600);
+      }
+    }, 1000);
+  }
+
+  function endGame() {
+    gameOver = true;
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    if (score > best) { best = score; save(); }
+    const coins = Math.floor(score / 50);
+    if (window.GameHub && coins > 0) {
+      window.GameHub.coins.add(coins);
+      window.GameHub.notify('g13_done', { mode, score, coins });
+      window.GameHub.notify('game_start', { gameId: 13 });
+    }
+    overTitle.textContent = '🎉 Selesai!';
+    overSub.innerHTML = `Skor: <b>${score}</b><br>Best: <b>${best}</b>${coins > 0 ? `<br>+${coins} 🪙` : ''}`;
+    overlay.classList.add('show');
+  }
+
+  function newGame() {
+    gameOver = false;
+    score = 0;
+    comboCount = 0;
+    selected = null;
+    timeLeft = TIMED_DURATION;
+    movesLeft = MOVES_LIMIT;
+    board = createBoardNoMatches();
+    overlay.classList.remove('show');
+    updateStats();
+    bestEl.textContent = best;
+    render();
+    startTimer();
+  }
+
+  // Wire up
+  document.getElementById('newBtn').addEventListener('click', () => newGame());
+  document.getElementById('restartBtn').addEventListener('click', () => newGame());
+  document.querySelectorAll('.mode-pick button').forEach(b => {
+    b.addEventListener('click', () => {
+      mode = b.dataset.mode;
+      document.querySelectorAll('.mode-pick button').forEach(x => x.classList.toggle('active', x === b));
+      newGame();
+      b.blur();
+    });
+  });
+  window.addEventListener('resize', render);
+
+  load();
+  newGame();
+  if (window.GameHub) window.GameHub.notify('game_start', { gameId: 13 });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ular Tangga</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #0f0f1a;
+    --board-bg: #1a1a2e;
+    --border: #2a2a4a;
+    --text: #f0f0f0;
+    --text-muted: rgba(240,240,240,0.6);
+    --accent: #ffd54f;
+    --cell-even: #1e2540;
+    --cell-odd: #232c4f;
+    --snake: #ff5252;
+    --ladder: #ffb74d;
+    --p1: #4674e9;
+    --p2: #ff6b6b;
+    --p3: #69f0ae;
+    --p4: #ffd54f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    min-height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg-dark);
+    background-image:
+      radial-gradient(ellipse at 20% 15%, rgba(255,82,82,0.08) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 85%, rgba(255,183,77,0.08) 0%, transparent 55%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.75rem;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* ---- Top bar ---- */
+  .top-bar {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .logo {
+    font-weight: 900;
+    font-size: 1.3rem;
+    letter-spacing: -0.02em;
+  }
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .icon-btn:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
+  .icon-btn:active:not(:disabled) { transform: scale(0.92); }
+  .top-controls { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+  /* ---- Players (dynamic 2-4) ---- */
+  .players {
+    width: 100%;
+    max-width: 460px;
+    display: grid;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+  .players.count-2 { grid-template-columns: 1fr 1fr; }
+  .players.count-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .players.count-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  @media (max-width: 380px) {
+    .players.count-3, .players.count-4 { grid-template-columns: 1fr 1fr; }
+  }
+  .player {
+    background: rgba(0,0,0,0.25);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0.4rem 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    min-width: 0;
+  }
+  .player .player-top {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .player.active { transform: translateY(-2px); }
+  .player.p-0.active { border-color: var(--p1); box-shadow: 0 6px 18px rgba(70,116,233,0.25); }
+  .player.p-1.active { border-color: var(--p2); box-shadow: 0 6px 18px rgba(255,107,107,0.25); }
+  .player.p-2.active { border-color: var(--p3); box-shadow: 0 6px 18px rgba(105,240,174,0.25); }
+  .player.p-3.active { border-color: var(--p4); box-shadow: 0 6px 18px rgba(255,213,79,0.25); }
+  .player-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.3);
+  }
+  .player.p-0 .player-dot { background: var(--p1); }
+  .player.p-1 .player-dot { background: var(--p2); }
+  .player.p-2 .player-dot { background: var(--p3); }
+  .player.p-3 .player-dot { background: var(--p4); }
+  .player-name {
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .player-cpu-tag {
+    font-size: 0.55rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 1px 4px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .player-pos {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+  }
+  .player-pos b { color: var(--text); }
+  .player-wins {
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+
+  /* ---- Board ---- */
+  .board-wrap {
+    width: 100%;
+    max-width: 460px;
+    position: relative;
+  }
+  .board {
+    width: 100%;
+    aspect-ratio: 1;
+    position: relative;
+    background: var(--board-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .cells {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+  }
+  .cell {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    padding: 2px 3px;
+    border: 0.5px solid rgba(255,255,255,0.04);
+  }
+  .cell.even { background: var(--cell-even); }
+  .cell.odd  { background: var(--cell-odd); }
+  .cell.start { background: rgba(105, 240, 174, 0.1); }
+  .cell.goal {
+    background: linear-gradient(135deg, rgba(255,213,79,0.25), rgba(237,194,46,0.15));
+    color: var(--accent);
+  }
+  .cell.goal::after {
+    content: '🏆';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(1rem, 4vw, 1.6rem);
+    pointer-events: none;
+  }
+  .cell.snake-head { background: rgba(255,82,82,0.12); }
+  .cell.ladder-bottom { background: rgba(255,183,77,0.12); }
+  .cell.bonus-tile { background: linear-gradient(135deg, rgba(105,240,174,0.18), rgba(105,240,174,0.08)); }
+  .cell.bonus-tile::after {
+    content: '⭐';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(0.7rem, 2.5vw, 1rem);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .overlay-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .tokens {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .token {
+    position: absolute;
+    width: 6.5%;
+    height: 6.5%;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.7);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+    transition: left 0.25s ease, top 0.25s ease;
+    z-index: 5;
+  }
+  .token.p-0 { background: var(--p1); }
+  .token.p-1 { background: var(--p2); }
+  .token.p-2 { background: var(--p3); }
+  .token.p-3 { background: var(--p4); }
+  .token.sliding { transition: left 0.7s ease-in-out, top 0.7s ease-in-out; }
+
+  /* ---- Action panel ---- */
+  .action-panel {
+    width: 100%;
+    max-width: 460px;
+    margin-top: 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.55rem 0.85rem;
+  }
+  .dice {
+    width: 56px;
+    height: 56px;
+    background: white;
+    border-radius: 10px;
+    padding: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 3px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.1);
+    transition: transform 0.1s;
+  }
+  .dice.rolling { animation: shake 0.5s ease-in-out; }
+  @keyframes shake {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-10deg); }
+    75% { transform: rotate(10deg); }
+  }
+  .dot {
+    width: 100%;
+    height: 100%;
+    background: #2d2d2d;
+    border-radius: 50%;
+    align-self: center;
+    justify-self: center;
+  }
+  .message {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    color: var(--text-muted);
+  }
+  .message b { color: var(--text); }
+  .big-btn {
+    background: var(--accent);
+    color: #2d2d2d;
+    border: none;
+    padding: 0.65rem 1.2rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.25);
+    transition: transform 0.12s, box-shadow 0.12s, opacity 0.15s;
+    flex-shrink: 0;
+  }
+  .big-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 0 rgba(0,0,0,0.25); }
+  .big-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,0.25); }
+  .big-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .small-btn {
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.7rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.7rem;
+    cursor: pointer;
+  }
+  .small-btn:hover { background: rgba(255,255,255,0.15); }
+
+  /* ---- Start overlay ---- */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15,15,26,0.95);
+    padding: 1rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    text-align: center;
+    backdrop-filter: blur(4px);
+    border-radius: 12px;
+    z-index: 20;
+    overflow-y: auto;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay h2 {
+    font-size: clamp(1.3rem, 5.5vw, 1.8rem);
+    font-weight: 800;
+    margin-bottom: 0.3rem;
+    letter-spacing: -0.02em;
+  }
+  .overlay .sub {
+    font-size: 0.78rem;
+    opacity: 0.85;
+    margin-bottom: 0.8rem;
+    line-height: 1.5;
+    max-width: 320px;
+  }
+  .overlay .badge {
+    background: var(--accent);
+    color: #2d2d2d;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    margin-top: 0.4rem;
+    display: inline-block;
+    animation: badgePop 0.5s cubic-bezier(.5,0,.3,1.5);
+  }
+  @keyframes badgePop {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Player count + per-player CPU config inside overlay */
+  .config-section {
+    margin: 0.55rem 0;
+    width: 100%;
+    max-width: 340px;
+  }
+  .config-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    margin-bottom: 0.3rem;
+  }
+  .count-pick {
+    display: flex;
+    gap: 4px;
+    background: rgba(0,0,0,0.3);
+    padding: 3px;
+    border-radius: 999px;
+  }
+  .count-pick button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 6px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .count-pick button.active { background: var(--accent); color: #2d2d2d; }
+  .player-config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 0.4rem;
+  }
+  .pc-row {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    gap: 0.5rem;
+    align-items: center;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.35rem 0.5rem;
+  }
+  .pc-row .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--p1);
+    align-self: auto;
+    justify-self: auto;
+  }
+  .pc-row.p-0 .dot { background: var(--p1); }
+  .pc-row.p-1 .dot { background: var(--p2); }
+  .pc-row.p-2 .dot { background: var(--p3); }
+  .pc-row.p-3 .dot { background: var(--p4); }
+  .pc-row input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    outline: none;
+    width: 100%;
+    text-align: left;
+  }
+  .pc-row .role-toggle {
+    display: flex;
+    gap: 2px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+    padding: 2px;
+  }
+  .pc-row .role-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.65rem;
+    cursor: pointer;
+  }
+  .pc-row .role-toggle button.active { background: var(--accent); color: #2d2d2d; }
+  .map-info {
+    margin: 0.4rem 0;
+    font-size: 0.72rem;
+    opacity: 0.75;
+  }
+  .map-info b { color: var(--accent); }
+
+  /* ============ PICKER MODALS (map / theme) ============ */
+  .picker-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 8, 18, 0.82);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 0.75rem;
+  }
+  .picker-modal.show { display: flex; }
+  .picker-panel {
+    background: #1a1a2e;
+    border: 2px solid rgba(255, 213, 79, 0.4);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 92dvh;
+    display: flex;
+    flex-direction: column;
+    color: var(--text);
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+  .picker-header {
+    padding: 0.85rem 1rem;
+    background: #0f0f1e;
+    border-bottom: 2px solid rgba(255, 213, 79, 0.25);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .picker-header h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+  .picker-tools { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+  .picker-tools input {
+    padding: 0.4rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    border: 1px solid rgba(255, 213, 79, 0.3);
+    border-radius: 6px;
+    background: #0a0a18;
+    color: var(--text);
+    width: 160px;
+    outline: none;
+  }
+  .picker-tools input:focus { border-color: var(--accent); }
+  .picker-close {
+    padding: 0.4rem 0.85rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    background: var(--accent);
+    color: #2d2d2d;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .picker-cats {
+    padding: 0.55rem 0.85rem;
+    background: #0a0a18;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    overflow-x: auto;
+  }
+  .picker-cat-btn {
+    padding: 0.32rem 0.7rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .picker-cat-btn.active {
+    background: var(--accent);
+    color: #2d2d2d;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+  .picker-grid {
+    overflow-y: auto;
+    padding: 0.7rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.55rem;
+    flex: 1;
+    background: #0a0a18;
+  }
+  .picker-card {
+    background: #1a1a2e;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    padding: 0.45rem;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.12s, background 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .picker-card:hover { transform: translateY(-2px); background: #232342; }
+  .picker-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(255, 213, 79, 0.3);
+  }
+  .picker-card .preview-map {
+    background: var(--board-bg);
+    border-radius: 4px;
+    padding: 3px;
+    aspect-ratio: 1;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 1px;
+  }
+  .picker-card .preview-map .mc {
+    border-radius: 1px;
+    background: rgba(255,255,255,0.04);
+  }
+  .picker-card .preview-map .mc.s { background: rgba(255,82,82,0.7); }
+  .picker-card .preview-map .mc.l { background: rgba(255,183,77,0.7); }
+  .picker-card .preview-theme {
+    border-radius: 4px;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+  }
+  .picker-card .preview-theme .seg {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+  }
+  .picker-card .name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .picker-card .cat {
+    font-size: 0.6rem;
+    opacity: 0.65;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .picker-card .meta {
+    font-size: 0.6rem;
+    opacity: 0.5;
+  }
+  .picker-card .badge-active {
+    display: inline-block;
+    background: var(--accent);
+    color: #2d2d2d;
+    font-size: 0.58rem;
+    padding: 0.08rem 0.4rem;
+    border-radius: 999px;
+    font-weight: 800;
+    align-self: flex-start;
+  }
+  .picker-foot {
+    padding: 0.5rem 0.95rem;
+    font-size: 0.7rem;
+    opacity: 0.65;
+    text-align: center;
+    background: #0a0a18;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  @media (max-width: 480px) {
+    .picker-tools input { width: 110px; }
+    .picker-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  }
+  .back-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.78rem;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+  <a href="../index.html" class="back-link">← Kembali</a>
+
+  <div class="top-bar">
+    <div class="logo">🐍 Ular Tangga</div>
+    <div class="top-controls">
+      <button class="icon-btn" id="mapBtn" aria-label="Pilih peta" title="Pilih peta">🗺️</button>
+      <button class="icon-btn" id="themeBtn" aria-label="Ganti tema" title="Ganti tema">🎨</button>
+      <button class="icon-btn" id="soundBtn" aria-label="Suara" aria-pressed="true">🔊</button>
+      <button class="icon-btn" id="speedBtn" aria-label="Cepat" title="Mode cepat">⚡</button>
+      <button class="icon-btn" id="resetBtn" aria-label="Mulai ulang" title="Ulang (R)">↺</button>
+    </div>
+  </div>
+
+  <div class="players count-2" id="playersList"></div>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="cells" id="cells"></div>
+      <svg class="overlay-svg" id="overlaySvg" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+        <g id="overlayPaths"></g>
+      </svg>
+      <div class="tokens" id="tokensContainer"></div>
+      <div class="overlay show" id="overlay">
+        <h2 id="overlayTitle">Ular Tangga</h2>
+        <p class="sub" id="overlaySub">Lempar dadu, naik tangga, hindari ular. Capai kotak <b>100</b>!</p>
+        <div class="config-section">
+          <div class="config-label">Jumlah Pemain</div>
+          <div class="count-pick" id="countPick">
+            <button data-count="2" class="active">2</button>
+            <button data-count="3">3</button>
+            <button data-count="4">4</button>
+          </div>
+        </div>
+        <div class="config-section">
+          <div class="config-label">Pemain</div>
+          <div class="player-config-list" id="playerConfigList"></div>
+        </div>
+        <div class="map-info" id="mapInfo">Peta: <b>Klasik</b> · Tema: <b>Klasik</b></div>
+        <button class="big-btn" id="overlayBtn">Mulai Bermain</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-panel">
+    <div class="dice" id="dice"></div>
+    <div class="message" id="message">Tekan <b>Mulai</b> untuk bermain.</div>
+    <button class="big-btn" id="rollBtn" disabled>Lempar</button>
+  </div>
+
+  <!-- ============ MAP PICKER MODAL ============ -->
+  <div id="mapModal" class="picker-modal" aria-hidden="true">
+    <div class="picker-panel">
+      <div class="picker-header">
+        <h3>Pilih Peta (100 Peta)</h3>
+        <div class="picker-tools">
+          <input id="mapSearch" type="text" placeholder="Cari peta..." />
+          <button class="picker-close" id="mapModalClose">Tutup</button>
+        </div>
+      </div>
+      <div class="picker-grid" id="mapGrid"></div>
+      <div class="picker-foot" id="mapCount"></div>
+    </div>
+  </div>
+
+  <!-- ============ THEME PICKER MODAL ============ -->
+  <div id="themeModal" class="picker-modal" aria-hidden="true">
+    <div class="picker-panel">
+      <div class="picker-header">
+        <h3>Pilih Tema (50 Tema)</h3>
+        <div class="picker-tools">
+          <input id="themeSearch" type="text" placeholder="Cari tema..." />
+          <button class="picker-close" id="themeModalClose">Tutup</button>
+        </div>
+      </div>
+      <div class="picker-cats" id="themeCats"></div>
+      <div class="picker-grid" id="themeGrid"></div>
+      <div class="picker-foot" id="themeCount"></div>
+    </div>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============= CONSTANTS =============
+  const STORAGE_KEY = 'snakesladders_v2';
+  const SIZE = 10;
+  const GOAL = 100;
+  const DICE_PATTERNS = {
+    1: [[2,2]],
+    2: [[1,3],[3,1]],
+    3: [[1,3],[2,2],[3,1]],
+    4: [[1,1],[1,3],[3,1],[3,3]],
+    5: [[1,1],[1,3],[2,2],[3,1],[3,3]],
+    6: [[1,1],[1,3],[2,1],[2,3],[3,1],[3,3]]
+  };
+  const MOVE_STEP_MS_NORMAL = 200;
+  const MOVE_STEP_MS_FAST = 40;
+  const SLIDE_MS_NORMAL = 700;
+  const SLIDE_MS_FAST = 200;
+  let MOVE_STEP_MS = MOVE_STEP_MS_NORMAL;
+  let SLIDE_MS = SLIDE_MS_NORMAL;
+  const DICE_ANIM_FRAMES_NORMAL = 10;
+  const DICE_ANIM_FRAMES_FAST = 3;
+  let DICE_ANIM_FRAMES = DICE_ANIM_FRAMES_NORMAL;
+  const DICE_ANIM_FRAME_MS = 60;
+  const BONUS_TILES = new Set([14, 33, 52, 88]);
+
+  const PLAYER_COLORS = ['#4674e9', '#ff6b6b', '#69f0ae', '#ffd54f'];
+  const DEFAULT_NAMES = ['Pemain 1', 'Pemain 2', 'Pemain 3', 'Pemain 4'];
+
+  // ============= MAP GENERATION =============
+  // Seeded RNG (Mulberry32) so map IDs always generate the same map.
+  function mulberry32(seed) {
+    return function() {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Generate a map: returns { snakes: {head:tail,...}, ladders: {bottom:top,...} }.
+  // Constraints: cells 1, 100, and BONUS_TILES are reserved (no snake/ladder endpoint).
+  // No overlap between snake heads/tails and ladder bottoms/tops.
+  function generateMap(seed, snakeCount, ladderCount) {
+    const rng = mulberry32(seed);
+    const used = new Set();
+    used.add(1); used.add(GOAL);
+    for (const b of BONUS_TILES) used.add(b);
+
+    const snakes = {};
+    const ladders = {};
+
+    // Build snakes (head > tail, both must not overlap)
+    let attempts = 0;
+    while (Object.keys(snakes).length < snakeCount && attempts < 500) {
+      attempts++;
+      // Snake head in upper half, tail below
+      const headRow = 4 + Math.floor(rng() * 6);  // rows 4-9
+      const headCol = Math.floor(rng() * 10);
+      const head = rowColToCell(headRow, headCol);
+      if (used.has(head)) continue;
+      // Tail somewhere lower
+      const tailRow = Math.max(0, headRow - 2 - Math.floor(rng() * 5));
+      const tailCol = Math.floor(rng() * 10);
+      const tail = rowColToCell(tailRow, tailCol);
+      if (used.has(tail) || tail === head || tail >= head) continue;
+      snakes[head] = tail;
+      used.add(head); used.add(tail);
+    }
+
+    // Build ladders (bottom < top, both must not overlap)
+    attempts = 0;
+    while (Object.keys(ladders).length < ladderCount && attempts < 500) {
+      attempts++;
+      const bottomRow = Math.floor(rng() * 6); // rows 0-5
+      const bottomCol = Math.floor(rng() * 10);
+      const bottom = rowColToCell(bottomRow, bottomCol);
+      if (used.has(bottom)) continue;
+      const topRow = Math.min(9, bottomRow + 2 + Math.floor(rng() * 5));
+      const topCol = Math.floor(rng() * 10);
+      const top = rowColToCell(topRow, topCol);
+      if (used.has(top) || top === bottom || top <= bottom) continue;
+      ladders[bottom] = top;
+      used.add(bottom); used.add(top);
+    }
+
+    return { snakes, ladders };
+  }
+
+  function rowColToCell(row, col) {
+    // row 0 = bottom (cells 1-10), boustrophedon
+    const leftToRight = row % 2 === 0;
+    const within = leftToRight ? col : (9 - col);
+    return row * 10 + within + 1;
+  }
+
+  // 100 maps: index 0 = classic hand-crafted; 1-99 = procedurally generated.
+  const CLASSIC_MAP = {
+    snakes:  { 17:7, 47:26, 56:32, 62:19, 87:24, 93:73, 95:55, 98:78 },
+    ladders: { 4:25, 9:31, 21:42, 28:65, 36:44, 51:67, 71:91, 80:96 }
+  };
+  const MAPS = [];
+  // Map metadata: name + description
+  const MAP_NAMES = [
+    'Klasik', 'Hutan Belantara', 'Gua Gelap', 'Padang Pasir', 'Lautan Dalam',
+    'Gunung Berapi', 'Sungai Berliku', 'Lembah Tersembunyi', 'Bukit Kabut', 'Pantai Berbatu',
+    'Hutan Tropis', 'Tundra Beku', 'Stepa Luas', 'Sabana Merah', 'Pulau Vulkanik',
+    'Rawa Misteri', 'Tebing Curam', 'Air Terjun', 'Danau Tenang', 'Jurang Maut',
+    'Labirin Kuno', 'Reruntuhan', 'Kota Hilang', 'Menara Tinggi', 'Istana Bawah',
+    'Taman Bunga', 'Kebun Buah', 'Sawah Hijau', 'Kebun Teh', 'Perkebunan Kopi',
+    'Bukit Pasir', 'Oase Tersembunyi', 'Gurun Es', 'Stalaktit', 'Lorong Bawah',
+    'Sumur Tua', 'Goa Kelelawar', 'Air Panas', 'Mata Air', 'Sungai Es',
+    'Negeri Mimpi', 'Negeri Awan', 'Negeri Petir', 'Negeri Pelangi', 'Negeri Bayangan',
+    'Hutan Pinus', 'Hutan Bambu', 'Hutan Mati', 'Hutan Sakura', 'Hutan Magis',
+    'Pulau Tropis', 'Pulau Misterius', 'Pulau Harta', 'Pulau Bajak Laut', 'Pulau Karang',
+    'Lautan Topan', 'Lautan Bintang', 'Lautan Pasir', 'Lautan Hijau', 'Lautan Senja',
+    'Gunung Salju', 'Gunung Bara', 'Gunung Emas', 'Gunung Kristal', 'Gunung Aurora',
+    'Lembah Sungai', 'Lembah Bunga', 'Lembah Hujan', 'Lembah Pelangi', 'Lembah Naga',
+    'Sarang Naga', 'Sarang Burung', 'Sarang Lebah', 'Sarang Tikus', 'Sarang Laba-laba',
+    'Kerajaan Salju', 'Kerajaan Api', 'Kerajaan Air', 'Kerajaan Tanah', 'Kerajaan Udara',
+    'Padang Mawar', 'Padang Tulip', 'Padang Lavender', 'Padang Anggrek', 'Padang Melati',
+    'Negeri Permen', 'Negeri Roti', 'Negeri Es Krim', 'Negeri Cokelat', 'Negeri Donat',
+    'Galaksi Bintang', 'Galaksi Spiral', 'Galaksi Cincin', 'Galaksi Awan', 'Galaksi Hitam',
+    'Dimensi Cermin', 'Dimensi Kabut', 'Dimensi Es', 'Dimensi Api', 'Dimensi Akhir'
+  ];
+
+  for (let i = 0; i < 100; i++) {
+    if (i === 0) {
+      MAPS.push({ id: 0, name: MAP_NAMES[0], snakes: CLASSIC_MAP.snakes, ladders: CLASSIC_MAP.ladders });
+    } else {
+      // Vary difficulty: more snakes/ladders in higher-indexed maps
+      const snakeCount = 5 + (i % 6); // 5-10
+      const ladderCount = 5 + ((i + 3) % 6);
+      const m = generateMap(1000 + i * 137, snakeCount, ladderCount);
+      MAPS.push({ id: i, name: MAP_NAMES[i] || `Peta ${i + 1}`, snakes: m.snakes, ladders: m.ladders });
+    }
+  }
+
+  // ============= THEMES (50) =============
+  function lerpHex(a, b, t) {
+    const pa = { r: parseInt(a.slice(1,3),16), g: parseInt(a.slice(3,5),16), bl: parseInt(a.slice(5,7),16) };
+    const pb = { r: parseInt(b.slice(1,3),16), g: parseInt(b.slice(3,5),16), bl: parseInt(b.slice(5,7),16) };
+    const r = Math.round(pa.r + (pb.r - pa.r) * t);
+    const g = Math.round(pa.g + (pb.g - pa.g) * t);
+    const bl = Math.round(pa.bl + (pb.bl - pa.bl) * t);
+    return '#' + [r, g, bl].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+
+  // Each theme: board, cellEven, cellOdd, snake, ladder, p1..p4, accent
+  const THEMES = [
+    // ---- Klasik ----
+    { name: 'Klasik',          cat: 'Klasik',    board:'#1a1a2e', cellEven:'#1e2540', cellOdd:'#232c4f', snake:'#ff5252', ladder:'#ffb74d', accent:'#ffd54f', p:['#4674e9','#ff6b6b','#69f0ae','#ffd54f'] },
+    { name: 'Klasik Terang',   cat: 'Klasik',    board:'#f5f5dc', cellEven:'#fff8dc', cellOdd:'#f0e68c', snake:'#d32f2f', ladder:'#f57c00', accent:'#1976d2', p:['#1976d2','#d32f2f','#388e3c','#f57c00'] },
+    { name: 'Mono Gelap',      cat: 'Klasik',    board:'#0a0a0a', cellEven:'#1a1a1a', cellOdd:'#2a2a2a', snake:'#ff5252', ladder:'#80cbc4', accent:'#ffd54f', p:['#90a4ae','#ef5350','#66bb6a','#ffd54f'] },
+
+    // ---- Element ----
+    { name: 'Api',             cat: 'Element',   board:'#1a0500', cellEven:'#2a0e00', cellOdd:'#3a1500', snake:'#ff3d00', ladder:'#ffd54f', accent:'#ffab00', p:['#ff5722','#ffeb3b','#ff9100','#dd2c00'] },
+    { name: 'Air',             cat: 'Element',   board:'#001a2e', cellEven:'#002b47', cellOdd:'#003c60', snake:'#01579b', ladder:'#4fc3f7', accent:'#80d8ff', p:['#00b0ff','#03a9f4','#039be5','#0091ea'] },
+    { name: 'Es',              cat: 'Element',   board:'#0a1f2e', cellEven:'#0e2740', cellOdd:'#143052', snake:'#0288d1', ladder:'#80deea', accent:'#b3e5fc', p:['#e0f7fa','#b2ebf2','#81d4fa','#4fc3f7'] },
+    { name: 'Petir',           cat: 'Element',   board:'#1a1500', cellEven:'#2a2400', cellOdd:'#3a3200', snake:'#9c27b0', ladder:'#ffeb3b', accent:'#fff59d', p:['#ffeb3b','#ffd600','#ffc107','#ff8f00'] },
+    { name: 'Bumi',            cat: 'Element',   board:'#1a1208', cellEven:'#2d1f10', cellOdd:'#3d2c19', snake:'#6d4c41', ladder:'#a1887f', accent:'#bcaaa4', p:['#8d6e63','#a1887f','#795548','#5d4037'] },
+    { name: 'Angin',           cat: 'Element',   board:'#1a2433', cellEven:'#2a384a', cellOdd:'#3a4860', snake:'#607d8b', ladder:'#cfd8dc', accent:'#eceff1', p:['#eceff1','#b0bec5','#78909c','#546e7a'] },
+    { name: 'Logam',           cat: 'Element',   board:'#0d1014', cellEven:'#1a1d22', cellOdd:'#272a30', snake:'#37474f', ladder:'#90a4ae', accent:'#cfd8dc', p:['#90a4ae','#78909c','#607d8b','#455a64'] },
+
+    // ---- Permata ----
+    { name: 'Diamond',         cat: 'Permata',   board:'#1a2238', cellEven:'#1f2d4a', cellOdd:'#2a3a5a', snake:'#0277bd', ladder:'#80deea', accent:'#e0f7fa', p:['#b9f2ff','#80deea','#4fc3f7','#0288d1'] },
+    { name: 'Ruby',            cat: 'Permata',   board:'#2e0a14', cellEven:'#421019', cellOdd:'#561621', snake:'#b71c1c', ladder:'#ef9a9a', accent:'#ffcdd2', p:['#ff5252','#ef5350','#e53935','#b71c1c'] },
+    { name: 'Emerald',         cat: 'Permata',   board:'#0a2e1a', cellEven:'#0e3d22', cellOdd:'#124a2b', snake:'#1b5e20', ladder:'#a5d6a7', accent:'#c8e6c9', p:['#69f0ae','#43a047','#388e3c','#1b5e20'] },
+    { name: 'Sapphire',        cat: 'Permata',   board:'#0a142e', cellEven:'#0e1c42', cellOdd:'#162555', snake:'#0d47a1', ladder:'#90caf9', accent:'#bbdefb', p:['#448aff','#2962ff','#1976d2','#0d47a1'] },
+    { name: 'Topaz',           cat: 'Permata',   board:'#2e2308', cellEven:'#3d2f0e', cellOdd:'#4a3a15', snake:'#e65100', ladder:'#ffd54f', accent:'#fff59d', p:['#ffd54f','#ffca28','#ffb300','#ff8f00'] },
+    { name: 'Amethyst',        cat: 'Permata',   board:'#1f0a2e', cellEven:'#2d0e42', cellOdd:'#3a1655', snake:'#4a148c', ladder:'#ce93d8', accent:'#e1bee7', p:['#b388ff','#9c27b0','#7b1fa2','#4a148c'] },
+    { name: 'Onyx',            cat: 'Permata',   board:'#0a0a0a', cellEven:'#161616', cellOdd:'#222222', snake:'#37474f', ladder:'#90a4ae', accent:'#eceff1', p:['#cfd8dc','#90a4ae','#607d8b','#37474f'] },
+    { name: 'Mutiara',         cat: 'Permata',   board:'#1f2933', cellEven:'#2a363f', cellOdd:'#36434c', snake:'#b39ddb', ladder:'#fffde7', accent:'#f3e5f5', p:['#ffffff','#f0e6ff','#d1c4e9','#b39ddb'] },
+
+    // ---- Neon ----
+    { name: 'Cyberpunk',       cat: 'Neon',      board:'#0d0221', cellEven:'#1a0533', cellOdd:'#260a45', snake:'#ff0040', ladder:'#39ff14', accent:'#00f5ff', p:['#00f5ff','#ff00ff','#39ff14','#ff0040'] },
+    { name: 'Matrix',          cat: 'Neon',      board:'#000d00', cellEven:'#001500', cellOdd:'#002000', snake:'#003300', ladder:'#39ff14', accent:'#00ff41', p:['#00ff41','#1aff00','#80ff00','#a0ffa0'] },
+    { name: 'Sunset Neon',     cat: 'Neon',      board:'#2a0845', cellEven:'#3a0e5a', cellOdd:'#4a1670', snake:'#7209b7', ladder:'#ffd166', accent:'#ef476f', p:['#ff61d2','#ffd166','#ef476f','#06d6a0'] },
+    { name: 'Vapor Wave',      cat: 'Neon',      board:'#1a0033', cellEven:'#250045', cellOdd:'#300055', snake:'#ff0066', ladder:'#00f0ff', accent:'#ffd700', p:['#00f0ff','#ff00ff','#fffb00','#ff0066'] },
+    { name: 'Tron',            cat: 'Neon',      board:'#001020', cellEven:'#001830', cellOdd:'#002040', snake:'#0044cc', ladder:'#00ddff', accent:'#a0e8ff', p:['#00ddff','#0099ff','#0080ff','#0044cc'] },
+    { name: 'Acid',            cat: 'Neon',      board:'#0d1f00', cellEven:'#143000', cellOdd:'#1a3f00', snake:'#ff5500', ladder:'#eeff00', accent:'#aaff00', p:['#aaff00','#eeff00','#88ff00','#22ff00'] },
+
+    // ---- Pastel ----
+    { name: 'Mint',            cat: 'Pastel',    board:'#1f2e2a', cellEven:'#2d3d39', cellOdd:'#3a4b46', snake:'#ef5350', ladder:'#80cbc4', accent:'#fff59d', p:['#b8e0d2','#a8dadc','#80cbc4','#4db6ac'] },
+    { name: 'Peach',           cat: 'Pastel',    board:'#2d201f', cellEven:'#3d2d2c', cellOdd:'#4d3a39', snake:'#d84315', ladder:'#ffab91', accent:'#fff59d', p:['#ffdfba','#ffcc99','#ffb3ba','#ffadad'] },
+    { name: 'Lavender',        cat: 'Pastel',    board:'#251f33', cellEven:'#332b46', cellOdd:'#3f365a', snake:'#7b1fa2', ladder:'#ce93d8', accent:'#fff59d', p:['#c4b5fd','#cdb4db','#b39ddb','#9575cd'] },
+    { name: 'Rose',            cat: 'Pastel',    board:'#2e1f24', cellEven:'#3d2c31', cellOdd:'#4d3a3f', snake:'#c2185b', ladder:'#f8bbd0', accent:'#fff59d', p:['#fbcfe8','#f8bbd0','#f48fb1','#ec407a'] },
+    { name: 'Sky Pastel',      cat: 'Pastel',    board:'#1c2733', cellEven:'#293745', cellOdd:'#374756', snake:'#1976d2', ladder:'#90caf9', accent:'#fff59d', p:['#bae6fd','#dbeafe','#a0c4ff','#42a5f5'] },
+    { name: 'Cream',           cat: 'Pastel',    board:'#2a261c', cellEven:'#3a3528', cellOdd:'#4a4435', snake:'#a04000', ladder:'#fff59d', accent:'#fff8dc', p:['#fef3c7','#fef9c3','#fae8ff','#d1fae5'] },
+
+    // ---- Retro ----
+    { name: '8-bit',           cat: 'Retro',     board:'#0f0f1e', cellEven:'#1e1e3c', cellOdd:'#2d2d5a', snake:'#e7331c', ladder:'#22b14c', accent:'#fbd000', p:['#0095e9','#fbd000','#22b14c','#e7331c'] },
+    { name: 'Gameboy',         cat: 'Retro',     board:'#0f380f', cellEven:'#175017', cellOdd:'#1f681f', snake:'#0f380f', ladder:'#aada00', accent:'#9bbc0f', p:['#9bbc0f','#8bac0f','#306230','#0f380f'] },
+    { name: 'NES',             cat: 'Retro',     board:'#1a0a1a', cellEven:'#28122a', cellOdd:'#371a3a', snake:'#cc0000', ladder:'#73d216', accent:'#ffce00', p:['#ff7ab6','#73d216','#3465a4','#a259ff'] },
+    { name: 'Commodore 64',    cat: 'Retro',     board:'#352879', cellEven:'#3f349d', cellOdd:'#4a3fc0', snake:'#9a5236', ladder:'#b8c76f', accent:'#7e70ca', p:['#6abfc6','#b8c76f','#9a5236','#cb7e75'] },
+    { name: 'Arcade',          cat: 'Retro',     board:'#000000', cellEven:'#0a0a0a', cellOdd:'#141414', snake:'#ff0000', ladder:'#00ff00', accent:'#ffff00', p:['#ff0000','#ffff00','#00ff00','#0000ff'] },
+
+    // ---- Tema ----
+    { name: 'Hutan',           cat: 'Tema',      board:'#0d1b0d', cellEven:'#152915', cellOdd:'#1e371e', snake:'#5d4037', ladder:'#9ccc65', accent:'#fff59d', p:['#66bb6a','#9ccc65','#a1887f','#33691e'] },
+    { name: 'Laut',            cat: 'Tema',      board:'#001f3f', cellEven:'#002c54', cellOdd:'#003a6a', snake:'#006064', ladder:'#80deea', accent:'#fff59d', p:['#00bcd4','#0288d1','#26c6da','#01579b'] },
+    { name: 'Galaxy',          cat: 'Tema',      board:'#0a0014', cellEven:'#160025', cellOdd:'#220036', snake:'#7c4dff', ladder:'#ffd54f', accent:'#e040fb', p:['#7c4dff','#ffd54f','#e040fb','#ff4081'] },
+    { name: 'Sakura',          cat: 'Tema',      board:'#2e1525', cellEven:'#3e1f33', cellOdd:'#4e2942', snake:'#ad1457', ladder:'#f8bbd0', accent:'#fff59d', p:['#f48fb1','#ffb7c5','#ec407a','#ce93d8'] },
+    { name: 'Volcano',         cat: 'Tema',      board:'#1a0808', cellEven:'#2a0e0e', cellOdd:'#3a1414', snake:'#4e342e', ladder:'#ff6e40', accent:'#ffab00', p:['#ff3d00','#ff5722','#dd2c00','#bf360c'] },
+    { name: 'Tundra',          cat: 'Tema',      board:'#10242e', cellEven:'#193545', cellOdd:'#22465c', snake:'#37474f', ladder:'#b3e5fc', accent:'#fff59d', p:['#e1f5fe','#b3e5fc','#81d4fa','#4fc3f7'] },
+    { name: 'Tropis',          cat: 'Tema',      board:'#0d2a1f', cellEven:'#143d2c', cellOdd:'#1a4f39', snake:'#ff4081', ladder:'#ffeb3b', accent:'#76ff03', p:['#00bfa5','#76ff03','#ffab00','#ff4081'] },
+    { name: 'Padang Pasir',    cat: 'Tema',      board:'#2a1f0e', cellEven:'#3a2c16', cellOdd:'#4a391e', snake:'#5d4037', ladder:'#ffcc80', accent:'#fff59d', p:['#ffcc80','#ffb74d','#ff8a65','#a1887f'] },
+    { name: 'Sawah',           cat: 'Tema',      board:'#1a2200', cellEven:'#262f0a', cellOdd:'#323c14', snake:'#4e342e', ladder:'#aed581', accent:'#fff59d', p:['#cddc39','#9ccc65','#7cb342','#558b2f'] },
+    { name: 'Aurora',          cat: 'Tema',      board:'#001428', cellEven:'#001f3a', cellOdd:'#002a4d', snake:'#5e35b1', ladder:'#80ffff', accent:'#00ffd0', p:['#00ffd0','#aaff80','#aa00ff','#ffaa00'] },
+
+    // ---- Indonesia ----
+    { name: 'Merah Putih',     cat: 'Indonesia', board:'#1a0808', cellEven:'#2a0e0e', cellOdd:'#3a1414', snake:'#b71c1c', ladder:'#ffffff', accent:'#ffd54f', p:['#ffffff','#ef5350','#ffcdd2','#e53935'] },
+    { name: 'Batik',           cat: 'Indonesia', board:'#1a1208', cellEven:'#2a1d10', cellOdd:'#3a2818', snake:'#3e2723', ladder:'#deb887', accent:'#fff8e1', p:['#8d6e63','#bcaaa4','#5d4037','#6d4c41'] },
+    { name: 'Garuda',          cat: 'Indonesia', board:'#1a1208', cellEven:'#2a1d10', cellOdd:'#3a2818', snake:'#3e2723', ladder:'#ffd700', accent:'#ff8f00', p:['#ffd700','#ffeb3b','#ff8f00','#5d4037'] },
+    { name: 'Nusantara',       cat: 'Indonesia', board:'#0d1f2e', cellEven:'#142a3d', cellOdd:'#1a364d', snake:'#d32f2f', ladder:'#ffd54f', accent:'#00b0ff', p:['#00b0ff','#ffd54f','#ef5350','#43a047'] },
+    { name: 'Borobudur',       cat: 'Indonesia', board:'#1f1408', cellEven:'#2d2010', cellOdd:'#3b2c18', snake:'#5d4037', ladder:'#d7ccc8', accent:'#ff8f00', p:['#a1887f','#bcaaa4','#8d6e63','#d7ccc8'] }
+  ];
+
+  function applyTheme(idx) {
+    const t = THEMES[idx] || THEMES[0];
+    const root = document.documentElement.style;
+    root.setProperty('--board-bg', t.board);
+    root.setProperty('--cell-even', t.cellEven);
+    root.setProperty('--cell-odd', t.cellOdd);
+    root.setProperty('--snake', t.snake);
+    root.setProperty('--ladder', t.ladder);
+    root.setProperty('--accent', t.accent);
+    root.setProperty('--p1', t.p[0]);
+    root.setProperty('--p2', t.p[1]);
+    root.setProperty('--p3', t.p[2]);
+    root.setProperty('--p4', t.p[3]);
+  }
+
+  // ============= DOM =============
+  const cellsEl = document.getElementById('cells');
+  const overlayPaths = document.getElementById('overlayPaths');
+  const tokensContainer = document.getElementById('tokensContainer');
+  const playersListEl = document.getElementById('playersList');
+  const playerConfigList = document.getElementById('playerConfigList');
+  const diceEl = document.getElementById('dice');
+  const messageEl = document.getElementById('message');
+  const rollBtn = document.getElementById('rollBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const overlayBtn = document.getElementById('overlayBtn');
+  const mapInfoEl = document.getElementById('mapInfo');
+
+  // ============= STATE =============
+  let numPlayers = 2;
+  let players = []; // [{ name, isCPU, pos, wins }]
+  let turnIdx = 0;
+  let gameStarted = false;
+  let gameOver = false;
+  let busy = false;
+  let speedMode = false;
+  let soundOn = true;
+  let audioCtx = null;
+  let pendingTimers = [];
+  let currentMapIdx = 0;
+  let currentThemeIdx = 0;
+  let SNAKES = MAPS[0].snakes;
+  let LADDERS = MAPS[0].ladders;
+  // Persistent player config
+  let savedPlayerConfig = null;
+
+  function initPlayers() {
+    players = [];
+    for (let i = 0; i < numPlayers; i++) {
+      const cfg = (savedPlayerConfig && savedPlayerConfig[i]) || {};
+      players.push({
+        name: cfg.name || DEFAULT_NAMES[i],
+        isCPU: cfg.isCPU !== undefined ? cfg.isCPU : (i > 0), // default: only P1 is human
+        pos: 0,
+        wins: cfg.wins || 0
+      });
+    }
+  }
+
+  // ============= PERSISTENCE =============
+  function saveState() {
+    try {
+      const cfg = players.map(p => ({ name: p.name, isCPU: p.isCPU, wins: p.wins }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        playerConfig: cfg,
+        numPlayers,
+        soundOn,
+        speedMode,
+        currentMapIdx,
+        currentThemeIdx
+      }));
+    } catch(e) {}
+  }
+  function loadState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        if (typeof data.numPlayers === 'number' && data.numPlayers >= 2 && data.numPlayers <= 4) {
+          numPlayers = data.numPlayers;
+        }
+        if (Array.isArray(data.playerConfig)) savedPlayerConfig = data.playerConfig;
+        soundOn = data.soundOn !== false;
+        speedMode = data.speedMode === true;
+        if (typeof data.currentMapIdx === 'number' && data.currentMapIdx >= 0 && data.currentMapIdx < MAPS.length) {
+          currentMapIdx = data.currentMapIdx;
+        }
+        if (typeof data.currentThemeIdx === 'number' && data.currentThemeIdx >= 0 && data.currentThemeIdx < THEMES.length) {
+          currentThemeIdx = data.currentThemeIdx;
+        }
+      }
+    } catch(e) {}
+  }
+
+  function applyMap() {
+    SNAKES = MAPS[currentMapIdx].snakes;
+    LADDERS = MAPS[currentMapIdx].ladders;
+    buildBoard();
+    buildOverlay();
+    updateMapInfo();
+  }
+  function updateMapInfo() {
+    mapInfoEl.innerHTML = `Peta: <b>${MAPS[currentMapIdx].name}</b> · Tema: <b>${THEMES[currentThemeIdx].name}</b>`;
+  }
+
+  function applySpeedMode() {
+    MOVE_STEP_MS = speedMode ? MOVE_STEP_MS_FAST : MOVE_STEP_MS_NORMAL;
+    SLIDE_MS = speedMode ? SLIDE_MS_FAST : SLIDE_MS_NORMAL;
+    DICE_ANIM_FRAMES = speedMode ? DICE_ANIM_FRAMES_FAST : DICE_ANIM_FRAMES_NORMAL;
+    const btn = document.getElementById('speedBtn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(speedMode));
+      btn.style.background = speedMode ? 'rgba(255,213,79,0.4)' : '';
+      btn.style.color = speedMode ? '#ffd54f' : '';
+    }
+  }
+
+  // ============= SOUND =============
+  function ensureAudio() {
+    if (!soundOn) return false;
+    if (!audioCtx || audioCtx.state === 'closed') {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return false; }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return true;
+  }
+  function playSound(type) {
+    if (!ensureAudio()) return;
+    const t = audioCtx.currentTime;
+    if (type === 'roll') {
+      for (let i = 0; i < 5; i++) {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(180 + Math.random() * 100, t + i * 0.06);
+        g.gain.setValueAtTime(0.05, t + i * 0.06);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.06 + 0.05);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t + i * 0.06); o.stop(t + i * 0.06 + 0.06);
+      }
+    } else if (type === 'step') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(600, t);
+      g.gain.setValueAtTime(0.04, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.06);
+    } else if (type === 'ladder') {
+      [392, 523, 659, 784].forEach((f, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(f, t + i * 0.08);
+        g.gain.setValueAtTime(0.1, t + i * 0.08);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.08 + 0.2);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.22);
+      });
+    } else if (type === 'snake') {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(660, t);
+      o.frequency.exponentialRampToValueAtTime(200, t + 0.5);
+      g.gain.setValueAtTime(0.1, t);
+      g.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.52);
+    } else if (type === 'win') {
+      [523, 659, 784, 1046, 1318].forEach((f, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(f, t + i * 0.1);
+        g.gain.setValueAtTime(0.12, t + i * 0.1);
+        g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.1 + 0.3);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.32);
+      });
+    }
+  }
+
+  // ============= COORDINATE HELPERS =============
+  function cellToRC(n) {
+    const row = Math.floor((n - 1) / 10);
+    const within = (n - 1) % 10;
+    const col = (row % 2 === 0) ? within : (9 - within);
+    return { row, col };
+  }
+  function cellToSvg(n) {
+    const { row, col } = cellToRC(n);
+    const cx = col * 100 + 50;
+    const cy = (9 - row) * 100 + 50;
+    return { x: cx, y: cy };
+  }
+  function cellToTokenPos(n, playerIdx) {
+    if (n === 0) {
+      // Starting "off-board" positions: stack just outside the corner
+      return { left: -8 + playerIdx * 3, top: 92 };
+    }
+    const { row, col } = cellToRC(n);
+    const leftPct = col * 10;
+    const topPct = (9 - row) * 10;
+    // 2x2 grid of offsets inside each cell to keep up to 4 tokens visible
+    const offsets = [
+      { x: 1, y: 1 },
+      { x: 4, y: 1 },
+      { x: 1, y: 4 },
+      { x: 4, y: 4 }
+    ];
+    const o = offsets[playerIdx] || offsets[0];
+    return { left: leftPct + o.x, top: topPct + o.y };
+  }
+
+  // ============= RENDER BOARD =============
+  function buildBoard() {
+    cellsEl.innerHTML = '';
+    for (let visualRow = 0; visualRow < 10; visualRow++) {
+      const actualRow = 9 - visualRow;
+      const leftToRight = actualRow % 2 === 0;
+      for (let col = 0; col < 10; col++) {
+        const within = leftToRight ? col : (9 - col);
+        const n = actualRow * 10 + within + 1;
+        const cell = document.createElement('div');
+        cell.className = 'cell ' + ((visualRow + col) % 2 === 0 ? 'even' : 'odd');
+        if (n === 1) cell.classList.add('start');
+        if (n === GOAL) cell.classList.add('goal');
+        if (SNAKES[n]) cell.classList.add('snake-head');
+        if (LADDERS[n]) cell.classList.add('ladder-bottom');
+        if (BONUS_TILES.has(n)) cell.classList.add('bonus-tile');
+        const label = document.createElement('span');
+        label.textContent = n;
+        cell.appendChild(label);
+        cellsEl.appendChild(cell);
+      }
+    }
+  }
+
+  function buildOverlay() {
+    overlayPaths.innerHTML = '';
+    // Ladders
+    for (const [bottomStr, top] of Object.entries(LADDERS)) {
+      const bottom = parseInt(bottomStr);
+      const a = cellToSvg(bottom);
+      const b = cellToSvg(top);
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / len * 12;
+      const ny = dx / len * 12;
+      const rail1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      rail1.setAttribute('x1', a.x + nx); rail1.setAttribute('y1', a.y + ny);
+      rail1.setAttribute('x2', b.x + nx); rail1.setAttribute('y2', b.y + ny);
+      rail1.setAttribute('stroke', 'var(--ladder)');
+      rail1.setAttribute('stroke-width', '5');
+      rail1.setAttribute('stroke-linecap', 'round');
+      const rail2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      rail2.setAttribute('x1', a.x - nx); rail2.setAttribute('y1', a.y - ny);
+      rail2.setAttribute('x2', b.x - nx); rail2.setAttribute('y2', b.y - ny);
+      rail2.setAttribute('stroke', 'var(--ladder)');
+      rail2.setAttribute('stroke-width', '5');
+      rail2.setAttribute('stroke-linecap', 'round');
+      g.appendChild(rail1); g.appendChild(rail2);
+      const rungs = Math.max(3, Math.floor(len / 60));
+      for (let i = 1; i <= rungs; i++) {
+        const t = i / (rungs + 1);
+        const cx = a.x + dx * t;
+        const cy = a.y + dy * t;
+        const rung = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        rung.setAttribute('x1', cx + nx); rung.setAttribute('y1', cy + ny);
+        rung.setAttribute('x2', cx - nx); rung.setAttribute('y2', cy - ny);
+        rung.setAttribute('stroke', 'var(--ladder)');
+        rung.setAttribute('stroke-width', '3.5');
+        rung.setAttribute('stroke-linecap', 'round');
+        g.appendChild(rung);
+      }
+      overlayPaths.appendChild(g);
+    }
+    // Snakes
+    for (const [headStr, tail] of Object.entries(SNAKES)) {
+      const head = parseInt(headStr);
+      const a = cellToSvg(head);
+      const b = cellToSvg(tail);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      const nx = -dy / len * 30;
+      const ny = dx / len * 30;
+      const cp1 = { x: a.x + dx * 0.33 + nx, y: a.y + dy * 0.33 + ny };
+      const cp2 = { x: a.x + dx * 0.66 - nx, y: a.y + dy * 0.66 - ny };
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}`);
+      path.setAttribute('stroke', 'var(--snake)');
+      path.setAttribute('stroke-width', '8');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('opacity', '0.85');
+      const head_circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      head_circle.setAttribute('cx', a.x);
+      head_circle.setAttribute('cy', a.y);
+      head_circle.setAttribute('r', '14');
+      head_circle.setAttribute('fill', 'var(--snake)');
+      head_circle.setAttribute('stroke', '#fff');
+      head_circle.setAttribute('stroke-width', '2');
+      const tail_circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      tail_circle.setAttribute('cx', b.x);
+      tail_circle.setAttribute('cy', b.y);
+      tail_circle.setAttribute('r', '6');
+      tail_circle.setAttribute('fill', 'var(--snake)');
+      tail_circle.setAttribute('opacity', '0.7');
+      overlayPaths.appendChild(path);
+      overlayPaths.appendChild(tail_circle);
+      overlayPaths.appendChild(head_circle);
+    }
+  }
+
+  // ============= PLAYER UI =============
+  function buildPlayersList() {
+    playersListEl.className = 'players count-' + numPlayers;
+    playersListEl.innerHTML = '';
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      const el = document.createElement('div');
+      el.className = `player p-${i}`;
+      el.id = `playerEl${i}`;
+      el.innerHTML = `
+        <div class="player-top">
+          <div class="player-dot"></div>
+          <div class="player-name">${escapeHtml(p.name)}</div>
+          ${p.isCPU ? '<span class="player-cpu-tag">CPU</span>' : ''}
+        </div>
+        <div class="player-pos">Pos: <b id="pos${i}">${p.pos}</b> · 🏆 <span id="wins${i}">${p.wins}</span></div>
+      `;
+      playersListEl.appendChild(el);
+    }
+  }
+
+  function buildTokens() {
+    tokensContainer.innerHTML = '';
+    for (let i = 0; i < players.length; i++) {
+      const t = document.createElement('div');
+      t.className = `token p-${i}`;
+      t.id = `token${i}`;
+      t.style.left = '-100%';
+      t.style.top = '-100%';
+      tokensContainer.appendChild(t);
+    }
+    placeAllTokens();
+  }
+
+  function placeToken(i, n) {
+    const el = document.getElementById('token' + i);
+    if (!el) return;
+    const { left, top } = cellToTokenPos(n, i);
+    el.style.left = left + '%';
+    el.style.top = top + '%';
+  }
+  function placeAllTokens() {
+    for (let i = 0; i < players.length; i++) placeToken(i, players[i].pos);
+  }
+
+  function updatePositionUI() {
+    for (let i = 0; i < players.length; i++) {
+      const e = document.getElementById('pos' + i);
+      if (e) e.textContent = players[i].pos;
+      const w = document.getElementById('wins' + i);
+      if (w) w.textContent = players[i].wins;
+    }
+  }
+  function updateActivePlayer() {
+    for (let i = 0; i < players.length; i++) {
+      const el = document.getElementById('playerEl' + i);
+      if (el) el.classList.toggle('active', i === turnIdx && !gameOver);
+    }
+  }
+
+  // Player config UI inside start overlay
+  function buildPlayerConfig() {
+    playerConfigList.innerHTML = '';
+    for (let i = 0; i < numPlayers; i++) {
+      const cfg = (savedPlayerConfig && savedPlayerConfig[i]) || {};
+      const name = cfg.name || DEFAULT_NAMES[i];
+      const isCPU = cfg.isCPU !== undefined ? cfg.isCPU : (i > 0);
+      const row = document.createElement('div');
+      row.className = `pc-row p-${i}`;
+      row.innerHTML = `
+        <div class="dot"></div>
+        <input data-idx="${i}" class="pc-name" type="text" maxlength="14" value="${escapeAttr(name)}" />
+        <div class="role-toggle">
+          <button data-idx="${i}" data-role="human" class="${!isCPU ? 'active' : ''}">Manusia</button>
+          <button data-idx="${i}" data-role="cpu" class="${isCPU ? 'active' : ''}">CPU</button>
+        </div>
+      `;
+      playerConfigList.appendChild(row);
+    }
+    // Wire events
+    playerConfigList.querySelectorAll('.pc-name').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = parseInt(inp.dataset.idx);
+        if (!savedPlayerConfig) savedPlayerConfig = [];
+        if (!savedPlayerConfig[idx]) savedPlayerConfig[idx] = {};
+        savedPlayerConfig[idx].name = inp.value.trim() || DEFAULT_NAMES[idx];
+      });
+    });
+    playerConfigList.querySelectorAll('.role-toggle button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        const isCPU = btn.dataset.role === 'cpu';
+        if (!savedPlayerConfig) savedPlayerConfig = [];
+        if (!savedPlayerConfig[idx]) savedPlayerConfig[idx] = {};
+        savedPlayerConfig[idx].isCPU = isCPU;
+        const row = btn.closest('.pc-row');
+        row.querySelectorAll('.role-toggle button').forEach(b => {
+          b.classList.toggle('active', b.dataset.role === btn.dataset.role);
+        });
+        btn.blur();
+      });
+    });
+  }
+
+  // ============= DICE =============
+  function renderDice(face) {
+    diceEl.innerHTML = '';
+    const pattern = DICE_PATTERNS[face] || [];
+    for (const [row, col] of pattern) {
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.style.gridRow = String(row);
+      dot.style.gridColumn = String(col);
+      diceEl.appendChild(dot);
+    }
+  }
+  function rollDiceAnimated() {
+    return new Promise((resolve) => {
+      diceEl.classList.add('rolling');
+      playSound('roll');
+      let frame = 0;
+      const intervalId = setInterval(() => {
+        frame++;
+        renderDice(Math.floor(Math.random() * 6) + 1);
+        if (frame >= DICE_ANIM_FRAMES) {
+          clearInterval(intervalId);
+          const finalFace = Math.floor(Math.random() * 6) + 1;
+          renderDice(finalFace);
+          diceEl.classList.remove('rolling');
+          resolve(finalFace);
+        }
+      }, DICE_ANIM_FRAME_MS);
+      pendingTimers.push({ type: 'interval', id: intervalId });
+    });
+  }
+
+  // ============= UTILITIES =============
+  function sleep(ms) {
+    return new Promise((resolve) => {
+      const id = setTimeout(resolve, ms);
+      pendingTimers.push({ type: 'timeout', id });
+    });
+  }
+  function clearAllTimers() {
+    for (const t of pendingTimers) {
+      if (t.type === 'interval') clearInterval(t.id);
+      else clearTimeout(t.id);
+    }
+    pendingTimers = [];
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+  function setMessage(html) { messageEl.innerHTML = html; }
+
+  // ============= MOVEMENT =============
+  async function hopTokenFromTo(playerIdx, fromCell, toCell) {
+    const el = document.getElementById('token' + playerIdx);
+    if (el) el.classList.remove('sliding');
+    const direction = (toCell > fromCell) ? 1 : -1;
+    for (let n = fromCell + direction; (direction > 0 ? n <= toCell : n >= toCell); n += direction) {
+      placeToken(playerIdx, n);
+      playSound('step');
+      await sleep(MOVE_STEP_MS);
+    }
+  }
+  async function slideTokenTo(playerIdx, toCell, isLadder) {
+    const el = document.getElementById('token' + playerIdx);
+    if (el) el.classList.add('sliding');
+    placeToken(playerIdx, toCell);
+    playSound(isLadder ? 'ladder' : 'snake');
+    await sleep(SLIDE_MS);
+    if (el) el.classList.remove('sliding');
+  }
+
+  // ============= TURN LOGIC =============
+  async function takeTurn() {
+    if (gameOver || busy || !gameStarted) return;
+    busy = true;
+    rollBtn.disabled = true;
+    const p = players[turnIdx];
+
+    // CPU thinking pause
+    if (p.isCPU) {
+      setMessage(`🤖 <b>${escapeHtml(p.name)}</b> berpikir...`);
+      await sleep(speedMode ? 200 : 600);
+      if (!gameStarted || gameOver) { busy = false; return; }
+    }
+
+    setMessage(`<b>${escapeHtml(p.name)}</b> melempar dadu...`);
+    const roll = await rollDiceAnimated();
+    if (!gameStarted || gameOver) { busy = false; return; }
+
+    const from = p.pos;
+    let intendedTarget = from + roll;
+
+    if (intendedTarget > GOAL) {
+      setMessage(`<b>${escapeHtml(p.name)}</b> melempar <b>${roll}</b> — lebih dari 100, tetap.`);
+      await sleep(700);
+      endTurn(roll === 6);
+      return;
+    }
+
+    setMessage(`<b>${escapeHtml(p.name)}</b> melempar <b>${roll}</b>.`);
+    await hopTokenFromTo(turnIdx, from, intendedTarget);
+    p.pos = intendedTarget;
+    updatePositionUI();
+
+    // Ladder / snake check
+    if (LADDERS[intendedTarget]) {
+      const top = LADDERS[intendedTarget];
+      setMessage(`🪜 <b>${escapeHtml(p.name)}</b> naik ke <b>${top}</b>!`);
+      await sleep(300);
+      await slideTokenTo(turnIdx, top, true);
+      p.pos = top;
+      updatePositionUI();
+    } else if (SNAKES[intendedTarget]) {
+      const tail = SNAKES[intendedTarget];
+      setMessage(`🐍 <b>${escapeHtml(p.name)}</b> ditelan ular ke <b>${tail}</b>.`);
+      await sleep(300);
+      await slideTokenTo(turnIdx, tail, false);
+      p.pos = tail;
+      updatePositionUI();
+    }
+
+    if (p.pos === GOAL) {
+      handleWin(turnIdx);
+      return;
+    }
+
+    const landedOnBonus = BONUS_TILES.has(p.pos);
+    if (landedOnBonus) {
+      setMessage(`⭐ <b>${escapeHtml(p.name)}</b> mendarat di Kotak Bonus — giliran lagi!`);
+      await sleep(600);
+    }
+    endTurn(roll === 6 || landedOnBonus);
+  }
+
+  function endTurn(extraTurn) {
+    if (!extraTurn) {
+      turnIdx = (turnIdx + 1) % players.length;
+    } else {
+      setMessage(`Giliran lagi!`);
+    }
+    busy = false;
+    updateActivePlayer();
+    if (players[turnIdx].isCPU && !gameOver && gameStarted) {
+      const id = setTimeout(takeTurn, 500);
+      pendingTimers.push({ type: 'timeout', id });
+    } else {
+      rollBtn.disabled = gameOver || !gameStarted;
+      if (!extraTurn && !gameOver && gameStarted) {
+        setMessage(`Giliran <b>${escapeHtml(players[turnIdx].name)}</b> — tekan <b>Lempar</b>.`);
+      }
+    }
+  }
+
+  function handleWin(idx) {
+    gameOver = true;
+    busy = false;
+    players[idx].wins++;
+    saveState();
+    updatePositionUI();
+    updateActivePlayer();
+    rollBtn.disabled = true;
+    playSound('win');
+
+    if (window.GameHub) {
+      window.GameHub.notify('g6_win', { winnerIdx: idx, isHuman: !players[idx].isCPU });
+      if (!players[idx].isCPU) {
+        const coins = 30 + (numPlayers - 2) * 20;
+        window.GameHub.coins.add(coins);
+      }
+    }
+
+    overlayTitle.textContent = `🏆 ${players[idx].name} Menang!`;
+    let standingsHtml = '<div style="margin-top:0.4rem;font-size:0.78rem;line-height:1.5">';
+    const ranked = players.map((p, i) => ({ idx: i, ...p })).sort((a, b) => b.pos - a.pos);
+    ranked.forEach((p, rank) => {
+      standingsHtml += `<div>${rank+1}. <b>${escapeHtml(p.name)}</b> — pos ${p.pos} (🏆 ${p.wins})</div>`;
+    });
+    standingsHtml += '</div>';
+    overlaySub.innerHTML = standingsHtml;
+    overlayBtn.textContent = 'Main Lagi';
+    overlay.classList.add('show');
+  }
+
+  // ============= START / RESET =============
+  function startGame() {
+    clearAllTimers();
+    initPlayers();
+    turnIdx = 0;
+    gameStarted = true;
+    gameOver = false;
+    busy = false;
+    buildPlayersList();
+    buildTokens();
+    updatePositionUI();
+    updateActivePlayer();
+    renderDice(1);
+    overlay.classList.remove('show');
+    // If first player is CPU, auto-start
+    if (players[0].isCPU) {
+      const id = setTimeout(takeTurn, 600);
+      pendingTimers.push({ type: 'timeout', id });
+      setMessage(`Permainan dimulai!`);
+    } else {
+      rollBtn.disabled = false;
+      setMessage(`Giliran <b>${escapeHtml(players[0].name)}</b> — tekan <b>Lempar</b>.`);
+    }
+    saveState();
+  }
+  function fullReset() {
+    clearAllTimers();
+    gameStarted = false;
+    gameOver = false;
+    busy = false;
+    // Keep wins from saved config across game session
+    initPlayers();
+    buildPlayersList();
+    buildTokens();
+    updatePositionUI();
+    updateActivePlayer();
+    renderDice(1);
+    rollBtn.disabled = true;
+    overlayTitle.textContent = 'Ular Tangga';
+    overlaySub.innerHTML = 'Lempar dadu dan bergerak. Tangga membawamu naik, ular menurunkanmu.';
+    overlayBtn.textContent = 'Mulai Bermain';
+    buildPlayerConfig();
+    updateMapInfo();
+    overlay.classList.add('show');
+    setMessage('Tekan <b>Mulai</b> untuk bermain.');
+  }
+
+  // ============= UI HELPERS =============
+  function updateSoundButton() {
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    soundBtn.setAttribute('aria-pressed', String(soundOn));
+  }
+
+  // ============= MAP PICKER =============
+  const mapModal     = document.getElementById('mapModal');
+  const mapGridEl    = document.getElementById('mapGrid');
+  const mapSearchEl  = document.getElementById('mapSearch');
+  const mapCountEl   = document.getElementById('mapCount');
+  const mapBtnEl     = document.getElementById('mapBtn');
+  const mapCloseBtn  = document.getElementById('mapModalClose');
+
+  function renderMapGrid() {
+    const q = (mapSearchEl.value || '').trim().toLowerCase();
+    mapGridEl.innerHTML = '';
+    let shown = 0;
+    MAPS.forEach((m, i) => {
+      const queryHit = (m.name || '').toLowerCase().includes(q) || String(i + 1).includes(q);
+      if (q && !queryHit) return;
+      shown++;
+      const card = document.createElement('div');
+      card.className = 'picker-card' + (i === currentMapIdx ? ' selected' : '');
+      card.tabIndex = 0;
+      // Build mini map preview (10x10)
+      let cellsHtml = '';
+      for (let visualRow = 0; visualRow < 10; visualRow++) {
+        const actualRow = 9 - visualRow;
+        const leftToRight = actualRow % 2 === 0;
+        for (let col = 0; col < 10; col++) {
+          const within = leftToRight ? col : (9 - col);
+          const n = actualRow * 10 + within + 1;
+          let cls = 'mc';
+          if (m.snakes[n]) cls += ' s';
+          else if (m.ladders[n]) cls += ' l';
+          cellsHtml += `<div class="${cls}"></div>`;
+        }
+      }
+      const snakeCount = Object.keys(m.snakes).length;
+      const ladderCount = Object.keys(m.ladders).length;
+      card.innerHTML = `
+        <div class="preview-map">${cellsHtml}</div>
+        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="cat">Peta ${i + 1}</div>
+        <div class="meta">🐍 ${snakeCount} · 🪜 ${ladderCount}</div>
+        ${i === currentMapIdx ? '<span class="badge-active">Aktif</span>' : ''}
+      `;
+      const choose = () => {
+        // Block map change mid-turn — would change snake/ladder positions while
+        // a hop animation is in flight, causing wrong snake/ladder resolution.
+        if (gameStarted && !gameOver && (busy || players.some(p => p.pos > 0))) {
+          if (!confirm('Ganti peta? Permainan saat ini akan dimulai ulang.')) {
+            return;
+          }
+          currentMapIdx = i;
+          applyMap();
+          saveState();
+          updateMapInfo();
+          closeMapModal();
+          fullReset();
+          return;
+        }
+        currentMapIdx = i;
+        applyMap();
+        saveState();
+        renderMapGrid();
+        updateMapInfo();
+      };
+      card.addEventListener('click', choose);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+      });
+      mapGridEl.appendChild(card);
+    });
+    mapCountEl.textContent = `Menampilkan ${shown} dari ${MAPS.length} peta`;
+  }
+  function openMapModal() {
+    mapSearchEl.value = '';
+    renderMapGrid();
+    mapModal.classList.add('show');
+    mapModal.setAttribute('aria-hidden', 'false');
+  }
+  function closeMapModal() {
+    mapModal.classList.remove('show');
+    mapModal.setAttribute('aria-hidden', 'true');
+  }
+  mapBtnEl.addEventListener('click', (e) => { openMapModal(); e.currentTarget.blur(); });
+  mapCloseBtn.addEventListener('click', closeMapModal);
+  mapModal.addEventListener('click', (e) => { if (e.target === mapModal) closeMapModal(); });
+  mapSearchEl.addEventListener('input', renderMapGrid);
+
+  // ============= THEME PICKER =============
+  const themeModal     = document.getElementById('themeModal');
+  const themeGridEl    = document.getElementById('themeGrid');
+  const themeCatsEl    = document.getElementById('themeCats');
+  const themeSearchEl  = document.getElementById('themeSearch');
+  const themeCountEl   = document.getElementById('themeCount');
+  const themeBtnEl     = document.getElementById('themeBtn');
+  const themeCloseBtn  = document.getElementById('themeModalClose');
+  let themeCatFilter = 'Semua';
+
+  function renderThemeCats() {
+    const cats = ['Semua'];
+    for (const t of THEMES) if (!cats.includes(t.cat)) cats.push(t.cat);
+    themeCatsEl.innerHTML = '';
+    for (const c of cats) {
+      const b = document.createElement('button');
+      b.className = 'picker-cat-btn' + (c === themeCatFilter ? ' active' : '');
+      b.textContent = c;
+      b.addEventListener('click', () => {
+        themeCatFilter = c;
+        renderThemeCats();
+        renderThemeGrid();
+      });
+      themeCatsEl.appendChild(b);
+    }
+  }
+  function renderThemeGrid() {
+    const q = (themeSearchEl.value || '').trim().toLowerCase();
+    themeGridEl.innerHTML = '';
+    let shown = 0;
+    THEMES.forEach((t, i) => {
+      if (themeCatFilter !== 'Semua' && t.cat !== themeCatFilter) return;
+      if (q && !(t.name.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q))) return;
+      shown++;
+      const card = document.createElement('div');
+      card.className = 'picker-card' + (i === currentThemeIdx ? ' selected' : '');
+      card.tabIndex = 0;
+      const segs = [
+        `<div class="seg" style="background:${t.cellEven}"></div>`,
+        `<div class="seg" style="background:${t.snake}"></div>`,
+        `<div class="seg" style="background:${t.ladder}"></div>`,
+        `<div class="seg" style="background:${t.p[0]}"></div>`,
+        `<div class="seg" style="background:${t.p[1]}"></div>`,
+        `<div class="seg" style="background:${t.p[2]}"></div>`
+      ].join('');
+      card.innerHTML = `
+        <div class="preview-theme" style="background:${t.board}">${segs}</div>
+        <div class="name">${escapeHtml(t.name)}</div>
+        <div class="cat">${escapeHtml(t.cat)}</div>
+        ${i === currentThemeIdx ? '<span class="badge-active">Aktif</span>' : ''}
+      `;
+      const choose = () => {
+        currentThemeIdx = i;
+        applyTheme(currentThemeIdx);
+        saveState();
+        renderThemeGrid();
+        updateMapInfo();
+        // SVG references to var(--snake) and var(--ladder) auto-update via CSS vars
+      };
+      card.addEventListener('click', choose);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+      });
+      themeGridEl.appendChild(card);
+    });
+    themeCountEl.textContent = `Menampilkan ${shown} dari ${THEMES.length} tema`;
+  }
+  function openThemeModal() {
+    themeSearchEl.value = '';
+    themeCatFilter = 'Semua';
+    renderThemeCats();
+    renderThemeGrid();
+    themeModal.classList.add('show');
+    themeModal.setAttribute('aria-hidden', 'false');
+  }
+  function closeThemeModal() {
+    themeModal.classList.remove('show');
+    themeModal.setAttribute('aria-hidden', 'true');
+  }
+  themeBtnEl.addEventListener('click', (e) => { openThemeModal(); e.currentTarget.blur(); });
+  themeCloseBtn.addEventListener('click', closeThemeModal);
+  themeModal.addEventListener('click', (e) => { if (e.target === themeModal) closeThemeModal(); });
+  themeSearchEl.addEventListener('input', renderThemeGrid);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (mapModal.classList.contains('show')) closeMapModal();
+      if (themeModal.classList.contains('show')) closeThemeModal();
+    }
+  });
+
+  // ============= EVENTS =============
+  rollBtn.addEventListener('click', () => {
+    if (busy || gameOver || !gameStarted) return;
+    if (players[turnIdx].isCPU) return; // only human can manually roll
+    takeTurn();
+  });
+  overlayBtn.addEventListener('click', () => { startGame(); });
+  resetBtn.addEventListener('click', () => {
+    if (gameStarted && !gameOver && players.some(p => p.pos > 0)) {
+      if (!confirm('Mulai ulang? Permainan saat ini akan dihapus.')) return;
+    }
+    fullReset();
+  });
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    updateSoundButton();
+    saveState();
+    if (soundOn) ensureAudio();
+  });
+  document.getElementById('speedBtn').addEventListener('click', () => {
+    speedMode = !speedMode;
+    applySpeedMode();
+    saveState();
+    setMessage(speedMode ? '⚡ Mode cepat aktif.' : 'Mode normal.');
+  });
+
+  // Count picker
+  document.querySelectorAll('#countPick button').forEach(b => {
+    b.addEventListener('click', () => {
+      const newCount = parseInt(b.dataset.count) || 2;
+      if (newCount === numPlayers) { b.blur(); return; }
+      // If a game is in progress, confirm before changing player count.
+      if (gameStarted && !gameOver && players.some(p => p.pos > 0)) {
+        if (!confirm('Ganti jumlah pemain? Permainan saat ini akan dimulai ulang.')) {
+          b.blur();
+          return;
+        }
+      }
+      numPlayers = newCount;
+      document.querySelectorAll('#countPick button').forEach(x => x.classList.toggle('active', x === b));
+      buildPlayerConfig();
+      b.blur();
+      saveState();
+      // Force a clean reset so players[] length matches numPlayers immediately.
+      if (gameStarted) fullReset();
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === ' ' || e.key === 'Enter') {
+      const focused = document.activeElement;
+      if (focused && focused.tagName === 'BUTTON') return;
+      if (overlay.classList.contains('show')) {
+        e.preventDefault();
+        overlayBtn.click();
+      } else if (!busy && !gameOver && gameStarted && !players[turnIdx].isCPU) {
+        e.preventDefault();
+        takeTurn();
+      }
+    } else if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      resetBtn.click();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!audioCtx) return;
+    if (document.hidden && audioCtx.state === 'running') {
+      audioCtx.suspend().catch(() => {});
+    } else if (!document.hidden && audioCtx.state === 'suspended' && soundOn) {
+      audioCtx.resume().catch(() => {});
+    }
+  });
+
+  // ============= INIT =============
+  loadState();
+  updateSoundButton();
+  applySpeedMode();
+  applyTheme(currentThemeIdx);
+  applyMap();
+  initPlayers();
+  buildPlayersList();
+  buildTokens();
+  buildPlayerConfig();
+  // Sync count-pick UI
+  document.querySelectorAll('#countPick button').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.count) === numPlayers);
+  });
+  updatePositionUI();
+  updateMapInfo();
+  renderDice(1);
+  overlay.classList.add('show');
+  if (window.GameHub) window.GameHub.notify('game_start', { gameId: 6 });
+})();
+</script>
+</body>
+</html>

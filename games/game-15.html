@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Memory Card</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a0d2e;
+    --panel: #2a1a4a;
+    --card-back: #4a3680;
+    --card-back-glow: #7c4dff;
+    --card-front: #f0e6ff;
+    --text: #f0e0ff;
+    --accent: #b39ddb;
+    --gold: #ffd54f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body {
+    background: linear-gradient(180deg, #3a1a5a 0%, var(--bg) 100%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 1rem;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  .top-bar {
+    width: 100%; max-width: 480px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .logo { font-weight: 800; font-size: 1.25rem; }
+  .logo .accent { color: var(--accent); }
+  .top-controls { display: flex; gap: 0.4rem; }
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none; cursor: pointer;
+    color: var(--text); font-size: 1rem;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.18); }
+  .stats {
+    width: 100%; max-width: 480px;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 0.4rem; margin-bottom: 0.6rem;
+  }
+  .stat {
+    background: rgba(0,0,0,0.3); border-radius: 10px;
+    padding: 0.45rem 0.3rem; text-align: center;
+  }
+  .stat-label { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; opacity: 0.65; }
+  .stat-value { font-size: 1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .stat-value.high { color: var(--gold); }
+  .config-row {
+    width: 100%; max-width: 480px;
+    display: flex; gap: 0.5rem;
+    margin-bottom: 0.6rem;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .pick {
+    display: flex; gap: 0.3rem;
+    background: rgba(255,255,255,0.06);
+    padding: 4px; border-radius: 999px;
+  }
+  .pick button {
+    background: transparent; border: none;
+    color: var(--text); padding: 5px 12px;
+    border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-weight: 600; font-size: 0.72rem;
+  }
+  .pick button.active { background: var(--accent); color: #2d2d2d; }
+  .stage {
+    position: relative;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 0.6rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  }
+  .grid {
+    display: grid;
+    gap: 6px;
+  }
+  .card {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    cursor: pointer;
+    perspective: 1000px;
+    position: relative;
+  }
+  .card-inner {
+    position: relative;
+    width: 100%; height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.4s;
+  }
+  .card.flipped .card-inner { transform: rotateY(180deg); }
+  .card-front, .card-back {
+    position: absolute;
+    width: 100%; height: 100%;
+    backface-visibility: hidden;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card-back {
+    background: linear-gradient(135deg, var(--card-back), var(--card-back-glow));
+    color: var(--text);
+    font-size: 1.5rem;
+    font-weight: 800;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.2);
+  }
+  .card-front {
+    background: var(--card-front);
+    color: #2d2d2d;
+    font-size: 1.8rem;
+    transform: rotateY(180deg);
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.1);
+  }
+  .card.matched .card-front {
+    background: #c8e6c9;
+    box-shadow: inset 0 0 0 3px #4caf50, inset 0 -3px 0 rgba(0,0,0,0.1);
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(20, 10, 30, 0.95);
+    border-radius: 12px;
+    display: none;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 1.2rem;
+    backdrop-filter: blur(4px);
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 { font-size: 1.5rem; margin-bottom: 0.4rem; }
+  .overlay p { opacity: 0.85; font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.5; }
+  .overlay button {
+    background: var(--accent);
+    color: #2d2d2d;
+    border: none;
+    padding: 0.6rem 1.4rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .back-link {
+    position: absolute;
+    top: 0.5rem; left: 0.5rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.78rem;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+  <a href="../index.html" class="back-link">← Kembali</a>
+  <div class="top-bar">
+    <div class="logo">🧠 Memory<span class="accent">.</span></div>
+    <div class="top-controls">
+      <button class="icon-btn" id="newBtn" title="Permainan baru">🔄</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Pasangan</div>
+      <div class="stat-value" id="pairsEl">0/0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Moves</div>
+      <div class="stat-value" id="movesEl">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Waktu</div>
+      <div class="stat-value" id="timerEl">0:00</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Best</div>
+      <div class="stat-value high" id="bestEl">—</div>
+    </div>
+  </div>
+
+  <div class="config-row">
+    <div class="pick" id="sizePick">
+      <button data-size="4" class="active">4×4</button>
+      <button data-size="6">6×6</button>
+      <button data-size="8">6×8</button>
+    </div>
+    <div class="pick" id="themePick">
+      <button data-theme="emoji" class="active">Emoji</button>
+      <button data-theme="fruit">Buah</button>
+      <button data-theme="animal">Hewan</button>
+      <button data-theme="space">Antariksa</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="grid" id="grid"></div>
+    <div class="overlay" id="overlay">
+      <h2 id="overTitle">🎉 Selesai!</h2>
+      <p id="overSub"></p>
+      <button id="newBtn2">Main Lagi</button>
+    </div>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+  const STORAGE_KEY = 'memory_v1';
+
+  const THEMES = {
+    emoji:  ['🌟','🎈','🎁','🎯','🎨','🎭','🎲','🚀','⚡','💎','🌈','🎪','🎮','🎵','🏆','💡','🍀','🌙','🔥','💖','🦄','🎉','🎊','🍕'],
+    fruit:  ['🍎','🍊','🍋','🍌','🍉','🍇','🍓','🍑','🥭','🍍','🥝','🍒','🍈','🍅','🫐','🥥','🥑','🍆','🌽','🥕','🍐','🍅','🥒','🥦'],
+    animal: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🦄','🐺','🦝','🐗','🐴','🦓','🐍'],
+    space:  ['🚀','🛸','🌍','🌎','🌑','🌒','🌓','🌔','🌕','☄️','⭐','🌟','💫','✨','🪐','🌠','🌌','☀️','🌞','👨‍🚀','👽','🌛','🌜','🛰️']
+  };
+
+  const SIZES = {
+    4: { cols: 4, rows: 4, pairs: 8 },
+    6: { cols: 6, rows: 6, pairs: 18 },
+    8: { cols: 6, rows: 8, pairs: 24 }
+  };
+
+  let sizeKey = '4';
+  let themeKey = 'emoji';
+  let cards = [];
+  let cols, rows, totalPairs;
+  let pairsFound = 0;
+  let moves = 0;
+  let flipped = []; // currently flipped (not matched yet)
+  let busy = false;
+  let started = false;
+  let startTime = 0;
+  let timerId = null;
+  let gameOver = false;
+  let bestRecords = {}; // sizeKey → { moves, time }
+
+  const gridEl = document.getElementById('grid');
+  const pairsEl = document.getElementById('pairsEl');
+  const movesEl = document.getElementById('movesEl');
+  const timerEl = document.getElementById('timerEl');
+  const bestEl = document.getElementById('bestEl');
+  const overlay = document.getElementById('overlay');
+  const overTitle = document.getElementById('overTitle');
+  const overSub = document.getElementById('overSub');
+
+  function load() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data) {
+        bestRecords = data.bestRecords || {};
+        sizeKey = data.sizeKey || sizeKey;
+        themeKey = data.themeKey || themeKey;
+      }
+    } catch(e) {}
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ bestRecords, sizeKey, themeKey })); }
+    catch(e) {}
+  }
+
+  function fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${m}:${ss.toString().padStart(2,'0')}`;
+  }
+
+  function updateBest() {
+    const r = bestRecords[sizeKey];
+    bestEl.textContent = r ? `${r.moves}M ${fmtTime(r.time)}` : '—';
+  }
+
+  function newGame() {
+    const cfg = SIZES[sizeKey];
+    cols = cfg.cols; rows = cfg.rows; totalPairs = cfg.pairs;
+    const themeIcons = THEMES[themeKey].slice(0, totalPairs);
+    // Build pairs
+    const arr = [];
+    for (let i = 0; i < totalPairs; i++) {
+      arr.push(themeIcons[i], themeIcons[i]);
+    }
+    // Shuffle
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    cards = arr.map((icon, idx) => ({ id: idx, icon, flipped: false, matched: false }));
+    pairsFound = 0;
+    moves = 0;
+    flipped = [];
+    busy = false;
+    started = false;
+    gameOver = false;
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    timerEl.textContent = '0:00';
+    movesEl.textContent = '0';
+    pairsEl.textContent = `0/${totalPairs}`;
+    overlay.classList.remove('show');
+    updateBest();
+    render();
+  }
+
+  function render() {
+    // Cell size
+    const cellSize = Math.max(40, Math.min(72,
+      Math.floor((Math.min(window.innerWidth, 460) - 60) / cols),
+      Math.floor((window.innerHeight - 320) / rows)
+    ));
+    gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+    gridEl.innerHTML = '';
+    for (const c of cards) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      if (c.flipped || c.matched) card.classList.add('flipped');
+      if (c.matched) card.classList.add('matched');
+      card.style.width = cellSize + 'px';
+      card.style.height = cellSize + 'px';
+      card.innerHTML = `
+        <div class="card-inner">
+          <div class="card-back">?</div>
+          <div class="card-front" style="font-size:${cellSize * 0.5}px">${c.icon}</div>
+        </div>
+      `;
+      card.addEventListener('click', () => flipCard(c));
+      gridEl.appendChild(card);
+    }
+  }
+
+  function flipCard(c) {
+    if (busy || gameOver || c.flipped || c.matched) return;
+    if (!started) {
+      started = true;
+      startTime = Date.now();
+      timerId = setInterval(() => {
+        const sec = Math.floor((Date.now() - startTime) / 1000);
+        timerEl.textContent = fmtTime(sec);
+      }, 500);
+    }
+    c.flipped = true;
+    flipped.push(c);
+    render();
+    if (flipped.length === 2) {
+      moves++;
+      movesEl.textContent = moves;
+      if (flipped[0].icon === flipped[1].icon) {
+        flipped[0].matched = true;
+        flipped[1].matched = true;
+        flipped = [];
+        pairsFound++;
+        pairsEl.textContent = `${pairsFound}/${totalPairs}`;
+        if (pairsFound >= totalPairs) onWin();
+      } else {
+        busy = true;
+        setTimeout(() => {
+          flipped[0].flipped = false;
+          flipped[1].flipped = false;
+          flipped = [];
+          busy = false;
+          render();
+        }, 800);
+      }
+    }
+  }
+
+  function onWin() {
+    gameOver = true;
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const prev = bestRecords[sizeKey];
+    // Best by moves first, then time
+    const isBest = !prev || moves < prev.moves || (moves === prev.moves && elapsed < prev.time);
+    if (isBest) {
+      bestRecords[sizeKey] = { moves, time: elapsed };
+      save();
+    }
+    // Coin reward
+    const coins = totalPairs * 5;
+    if (window.GameHub) {
+      window.GameHub.coins.add(coins);
+      const perfect = (moves === totalPairs);
+      window.GameHub.notify('g15_done', { moves, time: elapsed, perfect, sizeKey });
+      window.GameHub.notify('game_start', { gameId: 15 });
+    }
+    setTimeout(() => {
+      overTitle.textContent = isBest ? '🎉 Rekor Baru!' : '✅ Selesai!';
+      const perfect = (moves === totalPairs);
+      overSub.innerHTML = `
+        Pasangan: <b>${totalPairs}</b><br>
+        Moves: <b>${moves}</b>${perfect ? ' ⭐ (sempurna!)' : ''}<br>
+        Waktu: <b>${fmtTime(elapsed)}</b><br>
+        +${coins} 🪙
+      `;
+      overlay.classList.add('show');
+    }, 500);
+  }
+
+  document.getElementById('newBtn').addEventListener('click', (e) => { newGame(); e.currentTarget.blur(); });
+  document.getElementById('newBtn2').addEventListener('click', () => newGame());
+  document.querySelectorAll('#sizePick button').forEach(b => {
+    b.addEventListener('click', () => {
+      sizeKey = b.dataset.size;
+      document.querySelectorAll('#sizePick button').forEach(x => x.classList.toggle('active', x === b));
+      save();
+      newGame();
+      b.blur();
+    });
+  });
+  document.querySelectorAll('#themePick button').forEach(b => {
+    b.addEventListener('click', () => {
+      themeKey = b.dataset.theme;
+      document.querySelectorAll('#themePick button').forEach(x => x.classList.toggle('active', x === b));
+      save();
+      newGame();
+      b.blur();
+    });
+  });
+  window.addEventListener('resize', render);
+
+  load();
+  // Apply persisted size/theme selection in UI
+  document.querySelectorAll('#sizePick button').forEach(b => b.classList.toggle('active', b.dataset.size === sizeKey));
+  document.querySelectorAll('#themePick button').forEach(b => b.classList.toggle('active', b.dataset.theme === themeKey));
+  newGame();
+  if (window.GameHub) window.GameHub.notify('game_start', { gameId: 15 });
+})();
+</script>
+</body>
+</html>
