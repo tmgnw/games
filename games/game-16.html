@@ -533,19 +533,68 @@
     <div class="board" id="board"></div>
     <div class="tokens-layer" id="tokensLayer"></div>
     <div class="overlay show" id="startOverlay">
-      <h2>🎲 Ludo</h2>
-      <p class="sub">Lempar dadu, bawa 4 bidakmu mengelilingi papan, masuk ke rumah lebih dulu untuk menang!</p>
-      <div class="setup-config">
-        <div class="setup-label">Jumlah Pemain</div>
-        <div class="count-pick" id="countPick">
-          <button data-count="2">2</button>
-          <button data-count="3">3</button>
-          <button data-count="4" class="active">4</button>
+      <!-- Stage 1: Pick mode -->
+      <div id="modeSelect">
+        <h2>🎲 Ludo</h2>
+        <p class="sub">Pilih cara main:</p>
+        <div style="display:flex;flex-direction:column;gap:0.45rem;width:100%;max-width:280px;margin-bottom:0.5rem">
+          <button class="big-btn" id="modeLocalBtn">🎮 Main Lokal (1 Device)</button>
+          <button class="big-btn" id="modeHostBtn" style="background:#69f0ae;color:#1a1a2e">🌐 Buat Room Online</button>
+          <button class="big-btn" id="modeJoinBtn" style="background:#80deea;color:#1a1a2e">🔑 Gabung Room</button>
         </div>
-        <div class="setup-label">Pemain</div>
-        <div class="player-cfg-list" id="playerCfgList"></div>
       </div>
-      <button class="big-btn" id="startBtn">Mulai Bermain</button>
+
+      <!-- Stage 2: Local setup (existing config) -->
+      <div id="localSetup" style="display:none">
+        <h2>🎲 Ludo Lokal</h2>
+        <p class="sub">Atur pemain di device ini. Maks 4 pemain (manusia/CPU).</p>
+        <div class="setup-config">
+          <div class="setup-label">Jumlah Pemain</div>
+          <div class="count-pick" id="countPick">
+            <button data-count="2">2</button>
+            <button data-count="3">3</button>
+            <button data-count="4" class="active">4</button>
+          </div>
+          <div class="setup-label">Pemain</div>
+          <div class="player-cfg-list" id="playerCfgList"></div>
+        </div>
+        <button class="big-btn" id="startBtn">Mulai Bermain</button>
+        <button class="big-btn" id="backToModeBtn1" style="background:rgba(255,255,255,0.1);color:#fff;margin-top:0.4rem">← Kembali</button>
+      </div>
+
+      <!-- Stage 3: Host pre-room (name entry) -->
+      <div id="hostSetup" style="display:none">
+        <h2>🌐 Buat Room</h2>
+        <p class="sub">Masukkan namamu, lalu bagikan kode ke teman.</p>
+        <input id="hostNameInput" type="text" maxlength="14" placeholder="Nama kamu" style="width:100%;max-width:260px;padding:0.55rem 0.7rem;border-radius:8px;border:1.5px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-family:inherit;font-size:0.9rem;text-align:center;margin-bottom:0.55rem" />
+        <button class="big-btn" id="createRoomBtn">Buat Room</button>
+        <button class="big-btn" id="backToModeBtn2" style="background:rgba(255,255,255,0.1);color:#fff;margin-top:0.4rem">← Kembali</button>
+      </div>
+
+      <!-- Stage 4: Join (code entry) -->
+      <div id="joinSetup" style="display:none">
+        <h2>🔑 Gabung Room</h2>
+        <p class="sub">Masukkan namamu dan kode room dari host.</p>
+        <input id="joinNameInput" type="text" maxlength="14" placeholder="Nama kamu" style="width:100%;max-width:260px;padding:0.55rem 0.7rem;border-radius:8px;border:1.5px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-family:inherit;font-size:0.9rem;text-align:center;margin-bottom:0.5rem" />
+        <input id="joinCodeInput" type="text" maxlength="6" placeholder="KODE 6 HURUF" style="width:100%;max-width:260px;padding:0.55rem 0.7rem;border-radius:8px;border:1.5px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-family:'Courier New',monospace;font-size:1.1rem;text-align:center;letter-spacing:0.3em;text-transform:uppercase;margin-bottom:0.55rem" />
+        <button class="big-btn" id="joinRoomBtn">Gabung</button>
+        <button class="big-btn" id="backToModeBtn3" style="background:rgba(255,255,255,0.1);color:#fff;margin-top:0.4rem">← Kembali</button>
+      </div>
+
+      <!-- Stage 5: Lobby (waiting for players) -->
+      <div id="lobbySetup" style="display:none;width:100%;max-width:340px">
+        <h2 id="lobbyTitle">🌐 Room</h2>
+        <p class="sub" id="lobbySub"></p>
+        <div id="roomCodeBox" style="display:none;background:rgba(105,240,174,0.15);border:2px dashed rgba(105,240,174,0.5);border-radius:10px;padding:0.65rem;margin-bottom:0.65rem">
+          <div style="font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;opacity:0.75;margin-bottom:0.2rem">Kode Room</div>
+          <div id="roomCodeDisplay" style="font-family:'Courier New',monospace;font-size:1.7rem;font-weight:800;letter-spacing:0.3em;color:#69f0ae">------</div>
+          <button id="copyCodeBtn" style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:5px 12px;border-radius:6px;font-family:inherit;font-size:0.72rem;cursor:pointer;margin-top:0.3rem">📋 Salin</button>
+        </div>
+        <div style="font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;opacity:0.7;margin-bottom:0.35rem;text-align:left">Pemain di Room</div>
+        <div id="lobbyPlayers" style="display:flex;flex-direction:column;gap:0.3rem;margin-bottom:0.55rem;text-align:left"></div>
+        <button class="big-btn" id="startOnlineBtn" style="display:none">Mulai Permainan</button>
+        <button class="big-btn" id="leaveRoomBtn" style="background:rgba(255,82,82,0.6);color:#fff;margin-top:0.4rem">Keluar Room</button>
+      </div>
     </div>
     <div class="overlay" id="endOverlay">
       <h2 id="endTitle">🏆 Menang!</h2>
@@ -566,6 +615,7 @@
   </details>
 
 <script src="../assets/gamehub.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 (function() {
   'use strict';
@@ -660,6 +710,37 @@
   let logEntries = [];
   // Standings (finish order): array of player indices in order they finished
   let finishOrder = [];
+
+  // ============= NETWORK STATE =============
+  // netMode: 'local' = single-device (default), 'host' = create-room, 'client' = joined a room
+  let netMode = 'local';
+  let peer = null;            // PeerJS instance
+  let myPlayerIdx = -1;       // my slot in players[] (always 0 for host)
+  let hostConn = null;        // (client) connection to host
+  let clientConns = [];       // (host) connections to all peers
+  let roomCode = '';          // 6-char public room code shown to others
+  // Lobby state (pre-game): array of { idx, name, online: true|false, isCPU }
+  let lobbyPlayers = [];
+  let myDisplayName = 'Pemain';
+
+  // 6-char code (uppercase, no ambiguous chars). Used in PeerJS ID prefix.
+  const ROOM_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const ROOM_ID_PREFIX = 'ludo-room-'; // PeerJS namespace to avoid collisions
+  function generateRoomCode() {
+    let s = '';
+    for (let i = 0; i < 6; i++) {
+      s += ROOM_ID_ALPHABET[Math.floor(Math.random() * ROOM_ID_ALPHABET.length)];
+    }
+    return s;
+  }
+  function isOnline() { return netMode === 'host' || netMode === 'client'; }
+  function amHost()   { return netMode === 'host'; }
+  function amClient() { return netMode === 'client'; }
+  // Is the local user controlling the current turn?
+  function isMyTurnOnline() {
+    if (!isOnline()) return true;
+    return turnIdx === myPlayerIdx;
+  }
 
   // ============= PERSISTENCE =============
   function saveState() {
@@ -1028,11 +1109,18 @@
     renderActionPanel();
     if (players[turnIdx].isCPU) {
       setMessage(`${PLAYER_ICONS[turnIdx]} <b>${escapeHtml(players[turnIdx].name)}</b> berpikir...`);
+      if (amHost()) broadcastState({ message: `${PLAYER_ICONS[turnIdx]} <b>${escapeHtml(players[turnIdx].name)}</b> berpikir...` });
       await sleep(700);
       if (gameOver) return;
       await rollAndAct();
     } else {
-      setMessage(`Giliran <b>${escapeHtml(players[turnIdx].name)}</b> — tekan Lempar.`);
+      // Personalize the message for online play
+      if (isOnline() && turnIdx === myPlayerIdx) {
+        setMessage(`Giliranmu — tekan Lempar.`);
+      } else {
+        setMessage(`Giliran <b>${escapeHtml(players[turnIdx].name)}</b> — tekan Lempar.`);
+      }
+      if (amHost()) broadcastState({ message: `Giliran <b>${escapeHtml(players[turnIdx].name)}</b>...` });
     }
   }
 
@@ -1044,6 +1132,7 @@
     if (gameOver) { busy = false; return; }
     dieValue = die;
     log(PLAYER_ICONS[turnIdx], `${escapeHtml(players[turnIdx].name)} dadu <b>${die}</b>`);
+    if (amHost()) broadcastState({ dieRolled: die, logEntry: { icon: PLAYER_ICONS[turnIdx], html: `${escapeHtml(players[turnIdx].name)} dadu <b>${die}</b>` } });
 
     // 3 sixes in a row → forfeit
     if (die === 6) {
@@ -1051,6 +1140,7 @@
       if (consecutiveSixes >= 3) {
         setMessage(`<b>${escapeHtml(players[turnIdx].name)}</b> dapat 3× dadu 6 — giliran hangus!`);
         log('⛔', `${escapeHtml(players[turnIdx].name)}: 3 dadu 6 berturut-turut → giliran hangus`);
+        if (amHost()) broadcastState({ message: `<b>${escapeHtml(players[turnIdx].name)}</b> dapat 3× dadu 6 — giliran hangus!`, logEntry: { icon: '⛔', html: `${escapeHtml(players[turnIdx].name)}: 3 dadu 6 → giliran hangus` } });
         await sleep(900);
         nextPlayer();
         busy = false;
@@ -1063,6 +1153,7 @@
     const movable = movableTokensFor(turnIdx, die);
     if (movable.length === 0) {
       setMessage(`${PLAYER_ICONS[turnIdx]} Tidak ada gerakan dengan dadu <b>${die}</b>.`);
+      if (amHost()) broadcastState({ message: `${PLAYER_ICONS[turnIdx]} Tidak ada gerakan dengan dadu <b>${die}</b>.` });
       await sleep(900);
       // If rolled a 6, doesn't grant extra turn when can't move
       nextPlayer();
@@ -1072,8 +1163,9 @@
 
     phase = 'choosing';
     updateMovableHighlights();
+    if (amHost()) broadcastState();
     if (players[turnIdx].isCPU) {
-      // CPU picks best token
+      // CPU picks best token (only host runs CPU)
       const choice = cpuChooseToken(movable, die);
       await sleep(500);
       if (!gameOver) await executeMove(choice, die);
@@ -1094,6 +1186,7 @@
     renderTokens();
     playSound('move');
     log(PLAYER_ICONS[turnIdx], `Bidak ke-${tok.idx + 1} maju ${die}`);
+    if (amHost()) broadcastState({ moveEffect: true, logEntry: { icon: PLAYER_ICONS[turnIdx], html: `Bidak ke-${tok.idx + 1} maju ${die}` } });
     await sleep(350);
 
     let extraTurn = false;
@@ -1102,17 +1195,20 @@
       const capNames = result.capture.map(c => `${PLAYER_ICONS[c.player]} bidak-${c.idx + 1}`).join(', ');
       log('💥', `Menangkap ${capNames}!`);
       setMessage(`💥 Menangkap ${result.capture.length} bidak lawan! Giliran lagi.`);
+      if (amHost()) broadcastState({ captureEffect: true, message: `💥 Menangkap ${result.capture.length} bidak lawan! Giliran lagi.`, logEntry: { icon: '💥', html: `Menangkap ${capNames}!` } });
       extraTurn = true;
       await sleep(500);
     }
     if (result.reachedGoal) {
       playSound('reachhome');
       log('🏠', `Bidak masuk rumah`);
+      if (amHost()) broadcastState({ reachedHomeEffect: true, logEntry: { icon: '🏠', html: 'Bidak masuk rumah' } });
       extraTurn = true;
       // Check win condition (all 4 tokens at goal)
       if (allTokensFinished(turnIdx)) {
         finishOrder.push(turnIdx);
         log('🏆', `<b>${escapeHtml(players[turnIdx].name)}</b> selesai!`);
+        if (amHost()) broadcastState({ logEntry: { icon: '🏆', html: `<b>${escapeHtml(players[turnIdx].name)}</b> selesai!` } });
         // Game ends when only one player remains
         const stillPlaying = players.filter((_, i) => !allTokensFinished(i));
         if (stillPlaying.length <= 1) {
@@ -1134,11 +1230,13 @@
       phase = 'rolling';
       updateActivePlayer();
       renderActionPanel();
+      if (amHost()) broadcastState();
       if (players[turnIdx].isCPU) {
         await sleep(500);
         if (!gameOver) await rollAndAct();
       } else {
         setMessage(`<b>${escapeHtml(players[turnIdx].name)}</b> — lempar lagi!`);
+        if (amHost()) broadcastState({ message: `<b>${escapeHtml(players[turnIdx].name)}</b> — lempar lagi!` });
       }
     } else {
       nextPlayer();
@@ -1284,14 +1382,19 @@
     });
   }
   function renderActionPanel() {
-    if (gameOver) {
-      rollBtn.disabled = true;
+    if (gameOver) { rollBtn.disabled = true; return; }
+    if (!gameStarted) { rollBtn.disabled = true; return; }
+    // Online: only the slot whose turn it is can roll
+    if (isOnline()) {
+      if (phase === 'rolling' && turnIdx === myPlayerIdx && !players[turnIdx].isCPU) {
+        rollBtn.disabled = false;
+        rollBtn.textContent = 'Lempar';
+      } else {
+        rollBtn.disabled = true;
+      }
       return;
     }
-    if (!gameStarted) {
-      rollBtn.disabled = true;
-      return;
-    }
+    // Local mode
     if (phase === 'rolling' && !players[turnIdx].isCPU) {
       rollBtn.disabled = false;
       rollBtn.textContent = 'Lempar';
@@ -1307,6 +1410,15 @@
     if (tok.player !== turnIdx) return;
     if (busy) return;
     if (!simulateMove(tok, dieValue).ok) return;
+    // Online: only my-turn slot can pick; clients send intent to host instead of acting locally
+    if (isOnline()) {
+      if (turnIdx !== myPlayerIdx) return;
+      if (amClient()) {
+        if (hostConn) hostConn.send({ type: 'intent_pick', tokenIdx: tok.idx });
+        return;
+      }
+      // host falls through and executes locally
+    }
     executeMove(tok, dieValue);
   }
 
@@ -1382,26 +1494,29 @@
     playSound('win');
     saveState();
     // Build standings
-    const standingsHtml = finishOrder.map((pIdx, rank) =>
-      `<div class="row">${rank + 1}. ${PLAYER_ICONS[pIdx]} <b>${escapeHtml(players[pIdx].name)}</b>${rank === 0 ? ' 🏆' : ''}</div>`
-    ).join('');
-    document.getElementById('endTitle').innerHTML = `🏆 ${escapeHtml(players[finishOrder[0]].name)} Menang!`;
-    document.getElementById('endStandings').innerHTML = standingsHtml || '<div style="opacity:0.7">—</div>';
+    renderEndOverlay();
     log('🏆', `<b>${escapeHtml(players[finishOrder[0]].name)}</b> menjuarai permainan!`);
-    // GameHub reward
+    // GameHub reward — only the local human (if winner is local player or in local mode)
     const winner = players[finishOrder[0]];
+    const isLocalWinner = !isOnline() ? !winner.isCPU : (finishOrder[0] === myPlayerIdx);
     if (window.GameHub) {
-      window.GameHub.notify('g16_win', { isHuman: !winner.isCPU });
-      if (!winner.isCPU) {
+      window.GameHub.notify('g16_win', { isHuman: isLocalWinner });
+      if (isLocalWinner) {
         const coins = 80 + (players.length - 2) * 30;
         window.GameHub.coins.add(coins);
       }
     }
+    if (amHost()) broadcastEnd();
     endOverlay.classList.add('show');
   }
 
   function fullReset() {
     clearAllTimers();
+    // If we're in an online room, tear it down too
+    if (isOnline()) {
+      leaveRoom();
+      return;
+    }
     gameStarted = false;
     gameOver = false;
     busy = false;
@@ -1417,6 +1532,7 @@
     setMessage('Tekan <b>Mulai</b> untuk bermain.');
     renderDice(1);
     buildSetupUI();
+    showOverlayStage('modeSelect');
   }
 
   // ============= SETUP UI =============
@@ -1465,6 +1581,14 @@
     if (busy || phase !== 'rolling') return;
     if (gameOver || !gameStarted) return;
     if (players[turnIdx].isCPU) return;
+    // Online: client sends intent to host; host runs locally
+    if (isOnline()) {
+      if (turnIdx !== myPlayerIdx) return;
+      if (amClient()) {
+        if (hostConn) hostConn.send({ type: 'intent_roll' });
+        return;
+      }
+    }
     rollAndAct();
   });
   startBtn.addEventListener('click', () => startGame());
@@ -1520,6 +1644,444 @@
     else if (!document.hidden && audioCtx.state === 'suspended' && soundOn) audioCtx.resume().catch(()=>{});
   });
 
+  // ============= NETWORKING (PeerJS) =============
+  // Overlay stage switching
+  function showOverlayStage(stage) {
+    ['modeSelect','localSetup','hostSetup','joinSetup','lobbySetup'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = (id === stage) ? '' : 'none';
+    });
+  }
+
+  // ---- Serialize / deserialize full game state ----
+  function snapshotState() {
+    return {
+      players: players.map(p => ({ name: p.name, isCPU: p.isCPU })),
+      tokens: tokens.map(t => ({ player: t.player, idx: t.idx, state: t.state, adv: t.adv })),
+      turnIdx, dieValue, phase, consecutiveSixes,
+      gameStarted, gameOver, finishOrder: finishOrder.slice()
+    };
+  }
+  function restoreState(snap) {
+    players = snap.players.map(p => ({ name: p.name, isCPU: p.isCPU }));
+    tokens = snap.tokens.map(t => ({ player: t.player, idx: t.idx, state: t.state, adv: t.adv }));
+    turnIdx = snap.turnIdx;
+    dieValue = snap.dieValue;
+    phase = snap.phase;
+    consecutiveSixes = snap.consecutiveSixes;
+    gameStarted = snap.gameStarted;
+    gameOver = snap.gameOver;
+    finishOrder = (snap.finishOrder || []).slice();
+    buildPlayerCards();
+    renderTokens();
+    updateActivePlayer();
+    renderDice(dieValue || 1);
+    renderActionPanel();
+  }
+
+  // ---- Lobby rendering ----
+  function renderLobby() {
+    const isHost = amHost();
+    document.getElementById('lobbyTitle').textContent = isHost ? '🌐 Room (Kamu Host)' : '🌐 Room';
+    document.getElementById('lobbySub').textContent = isHost
+      ? `Bagikan kode ke teman. Mulai saat semua sudah join (min. 2 pemain).`
+      : `Menunggu host memulai permainan...`;
+    document.getElementById('roomCodeBox').style.display = isHost ? '' : 'none';
+    document.getElementById('roomCodeDisplay').textContent = roomCode || '------';
+    const startBtn = document.getElementById('startOnlineBtn');
+    if (isHost) {
+      const onlineCount = lobbyPlayers.filter(p => p.online).length;
+      startBtn.style.display = '';
+      startBtn.disabled = onlineCount < 2;
+      startBtn.textContent = onlineCount < 2 ? `Tunggu pemain (${onlineCount}/2 min)` : `Mulai (${onlineCount} pemain)`;
+    } else {
+      startBtn.style.display = 'none';
+    }
+    const listEl = document.getElementById('lobbyPlayers');
+    listEl.innerHTML = '';
+    const colors = ['var(--pr)', 'var(--pb)', 'var(--py)', 'var(--pg)'];
+    for (let i = 0; i < 4; i++) {
+      const p = lobbyPlayers[i];
+      const div = document.createElement('div');
+      div.style.cssText = `display:flex;align-items:center;gap:0.5rem;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.08);padding:0.4rem 0.55rem;border-radius:7px;font-size:0.8rem`;
+      const dot = `<div style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex-shrink:0"></div>`;
+      let label;
+      if (!p) {
+        label = `<span style="opacity:0.4">— kosong —</span>`;
+      } else {
+        const youTag = (i === myPlayerIdx) ? ' <small style="opacity:0.7">(kamu)</small>' : '';
+        const statusTag = p.online ? '' : ' <small style="color:#ff5252">offline</small>';
+        label = `<span>${PLAYER_ICONS[i]} ${escapeHtml(p.name)}${i === 0 ? ' <small style="opacity:0.6">host</small>' : ''}${youTag}${statusTag}</span>`;
+      }
+      div.innerHTML = dot + label;
+      listEl.appendChild(div);
+    }
+  }
+
+  // ---- Host: create room ----
+  async function hostCreateRoom() {
+    const nameInput = document.getElementById('hostNameInput');
+    myDisplayName = (nameInput.value || '').trim().slice(0, 14) || 'Host';
+    const code = generateRoomCode();
+    if (typeof Peer === 'undefined') {
+      alert('Library PeerJS gagal dimuat. Periksa koneksi internet.');
+      return;
+    }
+    netMode = 'host';
+    myPlayerIdx = 0;
+    roomCode = code;
+    lobbyPlayers = [{ name: myDisplayName, online: true, isCPU: false, peerId: null }, null, null, null];
+    setStatus('Menyiapkan room...');
+    try {
+      // PeerJS will give us an ID based on our requested ID (room code-based)
+      peer = new Peer(ROOM_ID_PREFIX + code, { debug: 1 });
+      peer.on('open', () => {
+        showOverlayStage('lobbySetup');
+        renderLobby();
+        setMessage(`🌐 Room <b>${code}</b> dibuat. Tunggu pemain lain join.`);
+      });
+      peer.on('connection', (conn) => {
+        clientConns.push(conn);
+        conn.on('open', () => {
+          // wait for hello with name
+        });
+        conn.on('data', (msg) => onHostMessage(conn, msg));
+        conn.on('close', () => {
+          onClientDisconnect(conn);
+        });
+        conn.on('error', () => {
+          onClientDisconnect(conn);
+        });
+      });
+      peer.on('error', (err) => {
+        const m = err && err.type === 'unavailable-id'
+          ? 'Kode room sudah dipakai. Coba lagi.'
+          : 'Koneksi peer bermasalah: ' + (err && err.message || err);
+        alert(m);
+        leaveRoom();
+      });
+      peer.on('disconnected', () => {
+        // Try to reconnect to broker
+        if (peer && !peer.destroyed) peer.reconnect();
+      });
+    } catch (e) {
+      alert('Gagal membuat room: ' + e.message);
+      leaveRoom();
+    }
+  }
+
+  // ---- Client: join room ----
+  function clientJoinRoom() {
+    const nameInput = document.getElementById('joinNameInput');
+    const codeInput = document.getElementById('joinCodeInput');
+    myDisplayName = (nameInput.value || '').trim().slice(0, 14) || 'Pemain';
+    const code = (codeInput.value || '').trim().toUpperCase();
+    if (code.length !== 6) {
+      alert('Kode harus 6 huruf.');
+      return;
+    }
+    if (typeof Peer === 'undefined') {
+      alert('Library PeerJS gagal dimuat. Periksa koneksi internet.');
+      return;
+    }
+    netMode = 'client';
+    roomCode = code;
+    setStatus('Menyambung...');
+    try {
+      // Use a unique client ID
+      const clientId = ROOM_ID_PREFIX + 'c-' + Math.random().toString(36).slice(2, 10);
+      peer = new Peer(clientId, { debug: 1 });
+      peer.on('open', () => {
+        const conn = peer.connect(ROOM_ID_PREFIX + code, { reliable: true });
+        hostConn = conn;
+        conn.on('open', () => {
+          conn.send({ type: 'hello', name: myDisplayName });
+          showOverlayStage('lobbySetup');
+          setMessage(`🔑 Tersambung ke room <b>${code}</b>. Menunggu host...`);
+        });
+        conn.on('data', (msg) => onClientMessage(msg));
+        conn.on('close', () => {
+          alert('Koneksi ke host terputus. Room mungkin sudah ditutup.');
+          leaveRoom();
+        });
+        conn.on('error', (err) => {
+          alert('Koneksi gagal: ' + (err && err.message || err));
+          leaveRoom();
+        });
+      });
+      peer.on('error', (err) => {
+        const m = (err && err.type === 'peer-unavailable')
+          ? 'Room tidak ditemukan. Cek kembali kodenya.'
+          : 'Koneksi peer bermasalah: ' + (err && err.message || err);
+        alert(m);
+        leaveRoom();
+      });
+    } catch (e) {
+      alert('Gagal gabung room: ' + e.message);
+      leaveRoom();
+    }
+  }
+
+  // ---- Host: handle incoming message from a client ----
+  function onHostMessage(conn, msg) {
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.type === 'hello') {
+      // Assign client to next empty slot (1..3)
+      let slot = -1;
+      for (let i = 1; i < 4; i++) {
+        if (!lobbyPlayers[i]) { slot = i; break; }
+      }
+      if (slot < 0) {
+        // Room full
+        conn.send({ type: 'reject', reason: 'full' });
+        try { conn.close(); } catch(e) {}
+        return;
+      }
+      const name = (msg.name || '').toString().slice(0, 14) || `Pemain ${slot + 1}`;
+      lobbyPlayers[slot] = { name, online: true, isCPU: false, peerId: conn.peer };
+      conn._slot = slot;
+      conn.send({ type: 'assignedSlot', idx: slot, lobby: lobbyPlayers });
+      broadcastLobby();
+      renderLobby();
+      return;
+    }
+    if (msg.type === 'intent_roll') {
+      // Validate: is it conn._slot's turn?
+      if (turnIdx !== conn._slot) return;
+      if (phase !== 'rolling') return;
+      rollAndAct(); // host runs the roll; state broadcasts via wrapped calls
+      return;
+    }
+    if (msg.type === 'intent_pick') {
+      if (turnIdx !== conn._slot) return;
+      if (phase !== 'choosing') return;
+      const tokIdx = parseInt(msg.tokenIdx);
+      const tok = tokens.find(t => t.player === conn._slot && t.idx === tokIdx);
+      if (!tok) return;
+      if (!simulateMove(tok, dieValue).ok) return;
+      executeMove(tok, dieValue);
+      return;
+    }
+  }
+
+  // ---- Client: handle incoming message from host ----
+  function onClientMessage(msg) {
+    if (!msg || typeof msg !== 'object') return;
+    switch (msg.type) {
+      case 'reject':
+        alert(msg.reason === 'full' ? 'Room sudah penuh.' : 'Ditolak: ' + msg.reason);
+        leaveRoom();
+        break;
+      case 'assignedSlot':
+        myPlayerIdx = msg.idx;
+        lobbyPlayers = msg.lobby || lobbyPlayers;
+        renderLobby();
+        setMessage(`Kamu pemain ke-${myPlayerIdx + 1} ${PLAYER_ICONS[myPlayerIdx]}`);
+        break;
+      case 'lobby':
+        lobbyPlayers = msg.lobby;
+        renderLobby();
+        break;
+      case 'gameStart':
+        // Apply initial state and start
+        restoreState(msg.state);
+        startOverlay.classList.remove('show');
+        endOverlay.classList.remove('show');
+        renderTokens();
+        log('🎮', `Permainan dimulai — ${players.length} pemain.`);
+        // Show whose turn it is
+        if (turnIdx === myPlayerIdx) {
+          setMessage(`Giliranmu — tekan Lempar.`);
+        } else {
+          setMessage(`Giliran ${PLAYER_ICONS[turnIdx]} <b>${escapeHtml(players[turnIdx].name)}</b>...`);
+        }
+        break;
+      case 'state':
+        restoreState(msg.state);
+        if (msg.message) setMessage(msg.message);
+        if (msg.logEntry) log(msg.logEntry.icon || '•', msg.logEntry.html || '');
+        if (msg.dieRolled) {
+          // Animate the dice for visual feedback
+          renderDice(msg.dieRolled);
+        }
+        if (msg.captureEffect) playSound('capture');
+        if (msg.moveEffect) playSound('move');
+        if (msg.reachedHomeEffect) playSound('reachhome');
+        break;
+      case 'end':
+        finishOrder = msg.finishOrder.slice();
+        gameOver = true;
+        phase = 'gameover';
+        endOverlay.classList.add('show');
+        renderEndOverlay();
+        break;
+      case 'roomClosed':
+        alert('Host menutup room.');
+        leaveRoom();
+        break;
+    }
+  }
+
+  function broadcastLobby() {
+    if (!amHost()) return;
+    for (const c of clientConns) {
+      try { c.send({ type: 'lobby', lobby: lobbyPlayers }); } catch(e) {}
+    }
+  }
+  // Broadcast current game state to all clients (host only)
+  function broadcastState(extras) {
+    if (!amHost()) return;
+    const msg = Object.assign({ type: 'state', state: snapshotState() }, extras || {});
+    for (const c of clientConns) {
+      try { c.send(msg); } catch(e) {}
+    }
+  }
+  function broadcastEnd() {
+    if (!amHost()) return;
+    for (const c of clientConns) {
+      try { c.send({ type: 'end', finishOrder }); } catch(e) {}
+    }
+  }
+  function onClientDisconnect(conn) {
+    const slot = conn._slot;
+    clientConns = clientConns.filter(c => c !== conn);
+    if (slot !== undefined && slot >= 1 && slot < 4 && lobbyPlayers[slot]) {
+      lobbyPlayers[slot].online = false;
+      // If game is in progress, mark them as CPU so the game can continue
+      if (gameStarted && !gameOver && players[slot]) {
+        players[slot].isCPU = true;
+        log('🔌', `${escapeHtml(players[slot].name)} terputus → diambil alih CPU`);
+        broadcastState({ message: `${escapeHtml(players[slot].name)} terputus → CPU.` });
+        // If it was their turn, kick AI in
+        if (turnIdx === slot && phase === 'rolling') {
+          setTimeout(() => { if (!gameOver) rollAndAct(); }, 600);
+        }
+      } else {
+        // In lobby: just free the slot
+        lobbyPlayers[slot] = null;
+      }
+      broadcastLobby();
+      renderLobby();
+    }
+  }
+
+  // ---- Leave room / cleanup ----
+  function leaveRoom() {
+    try {
+      if (amHost()) {
+        for (const c of clientConns) {
+          try { c.send({ type: 'roomClosed' }); } catch(e) {}
+          try { c.close(); } catch(e) {}
+        }
+      }
+      if (hostConn) try { hostConn.close(); } catch(e) {}
+      if (peer) try { peer.destroy(); } catch(e) {}
+    } catch(e) {}
+    peer = null;
+    hostConn = null;
+    clientConns = [];
+    netMode = 'local';
+    myPlayerIdx = -1;
+    roomCode = '';
+    lobbyPlayers = [];
+    gameStarted = false;
+    gameOver = false;
+    showOverlayStage('modeSelect');
+    startOverlay.classList.add('show');
+    endOverlay.classList.remove('show');
+    setMessage('Tekan <b>Mulai</b> untuk bermain.');
+  }
+
+  // ---- Host: start game from lobby ----
+  function hostStartGame() {
+    // Build players[] from lobbyPlayers
+    const filled = lobbyPlayers.map((lp, i) => lp ? { ...lp, idx: i } : null).filter(Boolean);
+    if (filled.length < 2) { alert('Butuh minimal 2 pemain.'); return; }
+    // Reorder so player slots are contiguous (0, 1, 2, ...) — already are in lobbyPlayers
+    setupCount = filled.length;
+    players = filled.map(lp => ({ name: lp.name, isCPU: false }));
+    // Tokens
+    finishOrder = [];
+    makeFreshTokens();
+    turnIdx = 0;
+    dieValue = 0;
+    consecutiveSixes = 0;
+    gameStarted = true;
+    gameOver = false;
+    busy = false;
+    phase = 'idle';
+    logEntries = [];
+    // Send game start to all
+    if (amHost()) {
+      const snap = snapshotState();
+      for (const c of clientConns) {
+        try { c.send({ type: 'gameStart', state: snap }); } catch(e) {}
+      }
+    }
+    startOverlay.classList.remove('show');
+    endOverlay.classList.remove('show');
+    buildPlayerCards();
+    renderTokens();
+    updateActivePlayer();
+    renderDice(1);
+    renderLog();
+    log('🎮', `Permainan dimulai — ${players.length} pemain.`);
+    if (window.GameHub) window.GameHub.notify('game_start', { gameId: 16 });
+    startTurn();
+  }
+
+  function renderEndOverlay() {
+    if (!finishOrder.length) return;
+    const standingsHtml = finishOrder.map((pIdx, rank) =>
+      `<div class="row">${rank + 1}. ${PLAYER_ICONS[pIdx]} <b>${escapeHtml(players[pIdx].name)}</b>${rank === 0 ? ' 🏆' : ''}</div>`
+    ).join('');
+    document.getElementById('endTitle').innerHTML = `🏆 ${escapeHtml(players[finishOrder[0]].name)} Menang!`;
+    document.getElementById('endStandings').innerHTML = standingsHtml || '<div style="opacity:0.7">—</div>';
+  }
+
+  // ---- Wire mode-select buttons ----
+  document.getElementById('modeLocalBtn').addEventListener('click', () => {
+    netMode = 'local';
+    myPlayerIdx = -1;
+    showOverlayStage('localSetup');
+  });
+  document.getElementById('modeHostBtn').addEventListener('click', () => {
+    document.getElementById('hostNameInput').value = setupPlayers[0].name || 'Host';
+    showOverlayStage('hostSetup');
+  });
+  document.getElementById('modeJoinBtn').addEventListener('click', () => {
+    document.getElementById('joinNameInput').value = setupPlayers[0].name || '';
+    showOverlayStage('joinSetup');
+  });
+  document.getElementById('backToModeBtn1').addEventListener('click', () => showOverlayStage('modeSelect'));
+  document.getElementById('backToModeBtn2').addEventListener('click', () => showOverlayStage('modeSelect'));
+  document.getElementById('backToModeBtn3').addEventListener('click', () => showOverlayStage('modeSelect'));
+  document.getElementById('createRoomBtn').addEventListener('click', hostCreateRoom);
+  document.getElementById('joinRoomBtn').addEventListener('click', clientJoinRoom);
+  document.getElementById('leaveRoomBtn').addEventListener('click', () => {
+    if (confirm('Keluar room? Permainan akan berakhir untuk semua peserta jika kamu host.')) {
+      leaveRoom();
+    }
+  });
+  document.getElementById('startOnlineBtn').addEventListener('click', hostStartGame);
+  document.getElementById('copyCodeBtn').addEventListener('click', () => {
+    if (!roomCode) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(roomCode).then(() => {
+        const b = document.getElementById('copyCodeBtn');
+        b.textContent = '✓ Tersalin';
+        setTimeout(() => { b.textContent = '📋 Salin'; }, 1400);
+      }).catch(()=>{});
+    }
+  });
+  // Auto-uppercase join code as the user types
+  document.getElementById('joinCodeInput').addEventListener('input', (e) => {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
+  });
+
+  // Helper used by some restored states
+  function setStatus(s) { setMessage(s); }
+
   // ============= INIT =============
   loadState();
   soundBtn.textContent = soundOn ? '🔊' : '🔇';
@@ -1527,6 +2089,7 @@
   buildSetupUI();
   renderDice(1);
   startOverlay.classList.add('show');
+  showOverlayStage('modeSelect');
   if (window.GameHub) window.GameHub.notify('game_start', { gameId: 16 });
 })();
 </script>
