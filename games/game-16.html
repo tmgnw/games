@@ -220,10 +220,14 @@
   .center-tri.t-3 { background: var(--pg); clip-path: polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%); }
   /* simpler center: 4 colored triangles meeting in middle */
   .center-area {
+    /* conic from 45deg → segments map to screen sides:
+       0-90deg = RIGHT, 90-180 = BOTTOM, 180-270 = LEFT, 270-360 = TOP.
+       Each triangle must match the player whose home column feeds that side:
+       Right=Yellow, Bottom=Green, Left=Red, Top=Blue. */
     background: conic-gradient(from 45deg,
-      var(--pr) 0deg 90deg,
-      var(--py) 90deg 180deg,
-      var(--pg) 180deg 270deg,
+      var(--py) 0deg 90deg,
+      var(--pg) 90deg 180deg,
+      var(--pr) 180deg 270deg,
       var(--pb) 270deg 360deg);
   }
   .center-area > * { display: none; }
