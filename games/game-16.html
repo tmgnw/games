@@ -730,6 +730,28 @@
   // 6-char code (uppercase, no ambiguous chars). Used in PeerJS ID prefix.
   const ROOM_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const ROOM_ID_PREFIX = 'ludo-room-'; // PeerJS namespace to avoid collisions
+
+  // ===== ICE / TURN config =====
+  // WebRTC needs a TURN server to relay traffic when both players sit behind
+  // strict NATs (mobile data, office/campus WiFi). STUN alone fails there →
+  // "Negotiation of connection failed". We include free public TURN servers.
+  //
+  // For GUARANTEED reliability, sign up free at https://www.metered.ca/tools/openrelay/
+  // (50GB/month free) and paste your own credentials into MY_TURN below.
+  const MY_TURN = null; // e.g. { urls:'turn:xxx.relay.metered.ca:80', username:'...', credential:'...' }
+  const ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    // Free public TURN (Open Relay project) — UDP + TCP + TLS fallbacks
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  ];
+  if (MY_TURN) ICE_SERVERS.push(MY_TURN);
+  // Options passed to every `new Peer(...)`. config.iceServers enables TURN relay.
+  const PEER_OPTS = { debug: 1, config: { iceServers: ICE_SERVERS } };
   function generateRoomCode() {
     let s = '';
     for (let i = 0; i < 6; i++) {
@@ -1738,7 +1760,7 @@
     setStatus('Menyiapkan room...');
     try {
       // PeerJS will give us an ID based on our requested ID (room code-based)
-      peer = new Peer(ROOM_ID_PREFIX + code, { debug: 1 });
+      peer = new Peer(ROOM_ID_PREFIX + code, PEER_OPTS);
       peer.on('open', () => {
         showOverlayStage('lobbySetup');
         renderLobby();
@@ -1794,28 +1816,49 @@
     try {
       // Use a unique client ID
       const clientId = ROOM_ID_PREFIX + 'c-' + Math.random().toString(36).slice(2, 10);
-      peer = new Peer(clientId, { debug: 1 });
+      peer = new Peer(clientId, PEER_OPTS);
+      // Safety timeout: if the data connection doesn't open within 20s, give up
+      // with a helpful message instead of hanging on "Menyambung..." forever.
+      let connected = false;
+      let joinTimer = setTimeout(() => {
+        if (!connected && netMode === 'client') {
+          alert('Gagal menyambung ke room (timeout).\n\nKemungkinan jaringan kamu/host memblokir koneksi langsung. Coba:\n• Pastikan host masih membuka room\n• Coba lewat WiFi (bukan data seluler)\n• Jika tetap gagal, jaringan butuh TURN server (lihat README)');
+          leaveRoom();
+        }
+      }, 20000);
       peer.on('open', () => {
         const conn = peer.connect(ROOM_ID_PREFIX + code, { reliable: true });
         hostConn = conn;
         conn.on('open', () => {
+          connected = true;
+          clearTimeout(joinTimer);
           conn.send({ type: 'hello', name: myDisplayName });
           showOverlayStage('lobbySetup');
           setMessage(`🔑 Tersambung ke room <b>${code}</b>. Menunggu host...`);
         });
         conn.on('data', (msg) => onClientMessage(msg));
         conn.on('close', () => {
-          alert('Koneksi ke host terputus. Room mungkin sudah ditutup.');
-          leaveRoom();
+          clearTimeout(joinTimer);
+          if (connected) {
+            alert('Koneksi ke host terputus. Room mungkin sudah ditutup.');
+            leaveRoom();
+          }
         });
         conn.on('error', (err) => {
-          alert('Koneksi gagal: ' + (err && err.message || err));
+          clearTimeout(joinTimer);
+          const msg = (err && err.message) || String(err);
+          if (/negotiat/i.test(msg)) {
+            alert('Koneksi WebRTC gagal (negotiation failed).\n\nIni biasanya karena jaringan ketat (data seluler/WiFi kantor). Coba pakai WiFi rumah, atau setup TURN server sendiri (lihat README).');
+          } else {
+            alert('Koneksi gagal: ' + msg);
+          }
           leaveRoom();
         });
       });
       peer.on('error', (err) => {
+        clearTimeout(joinTimer);
         const m = (err && err.type === 'peer-unavailable')
-          ? 'Room tidak ditemukan. Cek kembali kodenya.'
+          ? 'Room tidak ditemukan. Cek kembali kodenya, atau host belum membuat room.'
           : 'Koneksi peer bermasalah: ' + (err && err.message || err);
         alert(m);
         leaveRoom();

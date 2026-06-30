@@ -72,6 +72,32 @@ Hanya satu CDN font (`Poppins` dari Google Fonts) — bisa di-host lokal jika pe
 - **Daily Challenge** seeded by date (rotasi otomatis)
 - **Toast notifications** untuk unlock & klaim
 
+## 🌐 Ludo Online (Multiplayer antar Device)
+
+Game 16 (Ludo) mendukung **room online** lewat PeerJS (WebRTC P2P):
+host buat room → dapat kode 6-huruf → teman gabung dari device masing-masing.
+
+### Kalau "Negotiation failed" / gagal nyambung
+
+Itu masalah **NAT** — WebRTC butuh **TURN server** kalau kedua device di jaringan
+ketat (data seluler, WiFi kantor/kampus). Game sudah pakai TURN publik gratis,
+tapi kadang tidak stabil. Untuk koneksi yang **dijamin jalan**:
+
+1. Daftar gratis di **https://www.metered.ca/tools/openrelay/** (50GB/bulan)
+2. Salin kredensial TURN-mu
+3. Buka `games/game-16.html`, cari konstanta `MY_TURN` (sekitar baris 745), isi:
+   ```js
+   const MY_TURN = {
+     urls: 'turn:xxxx.relay.metered.ca:80',
+     username: 'xxxx',
+     credential: 'xxxx'
+   };
+   ```
+4. Deploy ulang.
+
+**Tips tanpa setup**: kalau dua device di **WiFi rumah yang sama**, biasanya
+langsung connect tanpa TURN.
+
 ## 📐 Mobile-Friendly
 
 Semua game responsive — touch + keyboard input.
