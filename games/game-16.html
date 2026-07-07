@@ -989,7 +989,13 @@
         el.dataset.player = tok.player;
         el.dataset.idx = tok.idx;
         el.textContent = String(tok.idx + 1);
-        el.addEventListener('click', () => onTokenClick(tok));
+        // Capture only the stable player/idx — the token OBJECT is replaced on every
+        // restoreState (client), so look up the LIVE token by player/idx at click time.
+        const pIdx = tok.player, tIdx = tok.idx;
+        el.addEventListener('click', () => {
+          const live = tokens.find(t => t.player === pIdx && t.idx === tIdx);
+          if (live) onTokenClick(live);
+        });
         // Place initially WITHOUT transition so first appearance doesn't slide in
         el.style.transition = 'none';
         const { r, c } = tokenCoord(tok);
