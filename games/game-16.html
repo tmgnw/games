@@ -619,7 +619,7 @@
   </details>
 
 <script src="../assets/gamehub.js"></script>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
 (function() {
   'use strict';
@@ -717,41 +717,50 @@
 
   // ============= NETWORK STATE =============
   // netMode: 'local' = single-device (default), 'host' = create-room, 'client' = joined a room
+  // Transport: MQTT pub/sub over a public WebSocket broker (zero setup, no NAT/TURN issues).
   let netMode = 'local';
-  let peer = null;            // PeerJS instance
+  let mqttClient = null;      // MQTT.js client instance
+  let myClientId = '';        // unique id for this device's MQTT session
   let myPlayerIdx = -1;       // my slot in players[] (always 0 for host)
-  let hostConn = null;        // (client) connection to host
-  let clientConns = [];       // (host) connections to all peers
+  let hostConn = null;        // (client) fake conn object → publishes to host topic
+  let clientConns = [];       // (host) fake conn objects, one per connected client
   let roomCode = '';          // 6-char public room code shown to others
   // Lobby state (pre-game): array of { idx, name, online: true|false, isCPU }
   let lobbyPlayers = [];
   let myDisplayName = 'Pemain';
+  // Session generation: bumped on every connect attempt / teardown so stale
+  // async callbacks (late broker CONNACK, abandoned attempts) can detect they
+  // belong to a dead session and bail out.
+  let mqttGeneration = 0;
+  let pendingMqttClient = null; // in-flight client currently being attempted
+  let helloAckTimer = null;     // (client) waiting for assignedSlot after connecting
+  let hostGraceTimer = null;    // (client) grace period after host drop before giving up
 
-  // 6-char code (uppercase, no ambiguous chars). Used in PeerJS ID prefix.
+  // 6-char code (uppercase, no ambiguous chars).
   const ROOM_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const ROOM_ID_PREFIX = 'ludo-room-'; // PeerJS namespace to avoid collisions
 
-  // ===== ICE / TURN config =====
-  // WebRTC needs a TURN server to relay traffic when both players sit behind
-  // strict NATs (mobile data, office/campus WiFi). STUN alone fails there →
-  // "Negotiation of connection failed". We include free public TURN servers.
-  //
-  // For GUARANTEED reliability, sign up free at https://www.metered.ca/tools/openrelay/
-  // (50GB/month free) and paste your own credentials into MY_TURN below.
-  const MY_TURN = null; // e.g. { urls:'turn:xxx.relay.metered.ca:80', username:'...', credential:'...' }
-  const ICE_SERVERS = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-    // Free public TURN (Open Relay project) — UDP + TCP + TLS fallbacks
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  // ===== MQTT transport config =====
+  // We relay game messages through a PUBLIC MQTT broker over secure WebSocket.
+  // This is just an outbound WSS connection on both devices — NO WebRTC, NO NAT
+  // hole-punching, NO TURN server. It works across ANY networks (mobile data,
+  // office WiFi, different ISPs) with zero account/setup.
+  // Public brokers tried in order; first that connects wins.
+  const MQTT_BROKERS = [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt',
+    'wss://test.mosquitto.org:8081/mqtt'
   ];
-  if (MY_TURN) ICE_SERVERS.push(MY_TURN);
-  // Options passed to every `new Peer(...)`. config.iceServers enables TURN relay.
-  const PEER_OPTS = { debug: 1, config: { iceServers: ICE_SERVERS } };
+  const MQTT_TOPIC_PREFIX = 'ludo16ID/'; // namespace on the shared public broker
+  // Topic helpers: host listens on /h (client→host), publishes on /c (host→clients)
+  function topicToHost(code)   { return MQTT_TOPIC_PREFIX + code + '/h'; }
+  function topicToClients(code){ return MQTT_TOPIC_PREFIX + code + '/c'; }
+  function randomClientId() {
+    return 'c' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  }
+  function mqttPublish(topic, obj) {
+    if (!mqttClient || !mqttClient.connected) return;
+    try { mqttClient.publish(topic, JSON.stringify(obj), { qos: 1 }); } catch(e) {}
+  }
   function generateRoomCode() {
     let s = '';
     for (let i = 0; i < 6; i++) {
@@ -1670,7 +1679,14 @@
     else if (!document.hidden && audioCtx.state === 'suspended' && soundOn) audioCtx.resume().catch(()=>{});
   });
 
-  // ============= NETWORKING (PeerJS) =============
+  // On tab close / navigate away, tell the room immediately so our slot frees
+  // right away instead of after the ~45s MQTT keepalive timeout. (pagehide is more
+  // reliable than beforeunload on mobile / bfcache.)
+  window.addEventListener('pagehide', () => {
+    if (netMode === 'host' || netMode === 'client') sendByeNow();
+  });
+
+  // ============= NETWORKING (MQTT) =============
   // Overlay stage switching
   function showOverlayStage(stage) {
     ['modeSelect','localSetup','hostSetup','joinSetup','lobbySetup'].forEach(id => {
@@ -1744,56 +1760,159 @@
     }
   }
 
+  // ---- Tear down any in-flight or live MQTT client and invalidate stale callbacks ----
+  // Bumping mqttGeneration makes every async callback from the old session a no-op.
+  function abortMqtt() {
+    mqttGeneration++;
+    if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+    if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+    try { if (pendingMqttClient) pendingMqttClient.end(true); } catch(e) {}
+    pendingMqttClient = null;
+    try { if (mqttClient) mqttClient.end(true); } catch(e) {}
+    mqttClient = null;
+  }
+
+  // ---- MQTT connection helper: try public brokers in order, fall back on failure ----
+  function connectMqtt(cfg) {
+    // cfg: { clientId, subscribeTopic, will, onConnect(firstTime), onMessage, onFail }
+    const myGen = mqttGeneration;   // this attempt belongs to the current session
+    let idx = 0;
+    let settled = false;            // true once we've committed to a working broker
+    function dead() { return myGen !== mqttGeneration; }
+    function attempt() {
+      if (dead()) return;
+      if (idx >= MQTT_BROKERS.length) {
+        if (!settled && !dead()) { settled = true; cfg.onFail && cfg.onFail(); }
+        return;
+      }
+      const url = MQTT_BROKERS[idx++];
+      let client;
+      try {
+        client = mqtt.connect(url, {
+          clientId: cfg.clientId,
+          clean: true,
+          connectTimeout: 7000,
+          reconnectPeriod: 0,   // no auto-reconnect during initial broker selection
+          keepalive: 30,
+          will: cfg.will || undefined
+        });
+      } catch (e) { attempt(); return; }
+      pendingMqttClient = client; // so abortMqtt()/leaveRoom() can kill it pre-connect
+
+      const timer = setTimeout(() => {
+        if (mqttClient !== client) { try { client.end(true); } catch(e) {} attempt(); }
+      }, 8000);
+
+      client.on('connect', () => {
+        // Belongs to a torn-down session, or a late connect from an abandoned broker → discard
+        if (dead() || (settled && mqttClient !== client)) { try { client.end(true); } catch(e) {} return; }
+        clearTimeout(timer);
+        const firstTime = !settled;
+        settled = true;
+        mqttClient = client;
+        pendingMqttClient = null;
+        // (Re)subscribe on every (re)connect; run onConnect after SUBACK
+        client.subscribe(cfg.subscribeTopic, { qos: 1 }, () => {
+          if (dead()) { try { client.end(true); } catch(e) {} return; }
+          if (firstTime) client.options.reconnectPeriod = 4000; // auto-reconnect to this broker
+          cfg.onConnect && cfg.onConnect(firstTime);
+        });
+      });
+      client.on('message', (topic, payload) => {
+        if (dead()) return;
+        cfg.onMessage && cfg.onMessage(topic, payload.toString());
+      });
+      client.on('error', () => {
+        if (!settled && !dead()) { clearTimeout(timer); try { client.end(true); } catch(e) {} attempt(); }
+      });
+    }
+    attempt();
+  }
+
+  // Host-side "fake connection" object representing one connected client.
+  // Mimics the old PeerJS conn API (.send / .close / ._slot / .peer) so the rest
+  // of the host code is unchanged.
+  function makeClientConn(clientId) {
+    return {
+      clientId,
+      peer: clientId,
+      _slot: undefined,
+      send(obj) { mqttPublish(topicToClients(roomCode), Object.assign({ to: clientId }, obj)); },
+      close() { clientConns = clientConns.filter(c => c !== this); }
+    };
+  }
+
+  // Host: route a raw MQTT payload (from a client) into the existing message handler.
+  function onHostMqtt(payloadStr) {
+    let msg;
+    try { msg = JSON.parse(payloadStr); } catch (e) { return; }
+    if (!msg || typeof msg !== 'object' || !msg.from) return;
+    let conn = clientConns.find(c => c.clientId === msg.from);
+    // Explicit leave (from leaveRoom) → always process.
+    if (msg.type === 'byeLeave') { if (conn) onClientDisconnect(conn); return; }
+    // Will-based 'bye' (ungraceful drop) → ignore if this client just reclaimed
+    // its slot on reconnect (the 'bye' is a stale will from the pre-reconnect session).
+    if (msg.type === 'bye') {
+      if (conn) {
+        if (conn._lastReclaimAt && (Date.now() - conn._lastReclaimAt < 8000)) return;
+        onClientDisconnect(conn);
+      }
+      return;
+    }
+    if (!conn) {
+      if (msg.type !== 'hello') return; // first contact must be a hello
+      conn = makeClientConn(msg.from);
+      clientConns.push(conn);
+    }
+    onHostMessage(conn, msg);
+  }
+
   // ---- Host: create room ----
-  async function hostCreateRoom() {
+  function hostCreateRoom() {
     const nameInput = document.getElementById('hostNameInput');
     myDisplayName = (nameInput.value || '').trim().slice(0, 14) || 'Host';
     const code = generateRoomCode();
-    if (typeof Peer === 'undefined') {
-      alert('Library PeerJS gagal dimuat. Periksa koneksi internet.');
+    if (typeof mqtt === 'undefined') {
+      alert('Library jaringan gagal dimuat. Periksa koneksi internet.');
       return;
     }
+    abortMqtt(); // kill any leftover/in-flight connection (guards double-click)
     netMode = 'host';
     myPlayerIdx = 0;
     roomCode = code;
+    myClientId = 'host-' + randomClientId();
+    clientConns = [];
     lobbyPlayers = [{ name: myDisplayName, online: true, isCPU: false, peerId: null }, null, null, null];
     setStatus('Menyiapkan room...');
-    try {
-      // PeerJS will give us an ID based on our requested ID (room code-based)
-      peer = new Peer(ROOM_ID_PREFIX + code, PEER_OPTS);
-      peer.on('open', () => {
-        showOverlayStage('lobbySetup');
-        renderLobby();
-        setMessage(`🌐 Room <b>${code}</b> dibuat. Tunggu pemain lain join.`);
-      });
-      peer.on('connection', (conn) => {
-        clientConns.push(conn);
-        conn.on('open', () => {
-          // wait for hello with name
-        });
-        conn.on('data', (msg) => onHostMessage(conn, msg));
-        conn.on('close', () => {
-          onClientDisconnect(conn);
-        });
-        conn.on('error', () => {
-          onClientDisconnect(conn);
-        });
-      });
-      peer.on('error', (err) => {
-        const m = err && err.type === 'unavailable-id'
-          ? 'Kode room sudah dipakai. Coba lagi.'
-          : 'Koneksi peer bermasalah: ' + (err && err.message || err);
-        alert(m);
+    connectMqtt({
+      clientId: myClientId,
+      subscribeTopic: topicToHost(code),
+      // On an UNGRACEFUL host drop the broker publishes this will. We use a distinct
+      // type ('hostDropped', not 'roomClosed') so clients treat it as a soft/maybe-
+      // recoverable event (grace period) rather than a hard close.
+      will: {
+        topic: topicToClients(code),
+        payload: JSON.stringify({ to: 'all', type: 'hostDropped' }),
+        qos: 1, retain: false
+      },
+      onConnect: (firstTime) => {
+        if (firstTime) {
+          showOverlayStage('lobbySetup');
+          renderLobby();
+          setMessage(`🌐 Room <b>${code}</b> dibuat. Bagikan kode ke temanmu.`);
+        } else {
+          // Reconnected after a blip: re-announce so any client that saw the
+          // 'hostDropped' will can recover (cancels their grace timer).
+          if (gameStarted && !gameOver) broadcastState({ message: 'Host tersambung kembali.' });
+          else broadcastLobby();
+        }
+      },
+      onMessage: (topic, payloadStr) => onHostMqtt(payloadStr),
+      onFail: () => {
+        alert('Gagal terhubung ke server. Periksa koneksi internet lalu coba lagi.');
         leaveRoom();
-      });
-      peer.on('disconnected', () => {
-        // Try to reconnect to broker
-        if (peer && !peer.destroyed) peer.reconnect();
-      });
-    } catch (e) {
-      alert('Gagal membuat room: ' + e.message);
-      leaveRoom();
-    }
+      }
+    });
   }
 
   // ---- Client: join room ----
@@ -1806,74 +1925,98 @@
       alert('Kode harus 6 huruf.');
       return;
     }
-    if (typeof Peer === 'undefined') {
-      alert('Library PeerJS gagal dimuat. Periksa koneksi internet.');
+    if (typeof mqtt === 'undefined') {
+      alert('Library jaringan gagal dimuat. Periksa koneksi internet.');
       return;
     }
+    abortMqtt(); // kill any leftover/in-flight connection (guards double-click)
     netMode = 'client';
     roomCode = code;
+    myClientId = randomClientId();
     setStatus('Menyambung...');
-    try {
-      // Use a unique client ID
-      const clientId = ROOM_ID_PREFIX + 'c-' + Math.random().toString(36).slice(2, 10);
-      peer = new Peer(clientId, PEER_OPTS);
-      // Safety timeout: if the data connection doesn't open within 20s, give up
-      // with a helpful message instead of hanging on "Menyambung..." forever.
-      let connected = false;
-      let joinTimer = setTimeout(() => {
-        if (!connected && netMode === 'client') {
-          alert('Gagal menyambung ke room (timeout).\n\nKemungkinan jaringan kamu/host memblokir koneksi langsung. Coba:\n• Pastikan host masih membuka room\n• Coba lewat WiFi (bukan data seluler)\n• Jika tetap gagal, jaringan butuh TURN server (lihat README)');
-          leaveRoom();
+
+    // Fake host-connection object so existing hostConn.send(...) calls keep working.
+    hostConn = {
+      send(obj) { mqttPublish(topicToHost(code), Object.assign({ from: myClientId }, obj)); },
+      close() {}
+    };
+
+    connectMqtt({
+      clientId: myClientId,
+      subscribeTopic: topicToClients(code),
+      // If we drop unexpectedly, tell the host so it can free our slot / hand to CPU.
+      will: {
+        topic: topicToHost(code),
+        payload: JSON.stringify({ from: myClientId, type: 'bye' }),
+        qos: 1, retain: false
+      },
+      onConnect: (firstTime) => {
+        // Re-send hello on EVERY (re)connect. On a reconnect the host re-attaches us
+        // to our existing slot (see onHostMessage 'hello' reclaim logic).
+        hostConn.send({ type: 'hello', name: myDisplayName });
+        if (firstTime) {
+          setMessage(`🔑 Menyambung ke room <b>${code}</b>...`);
+          // We're on a broker; now wait for the host's assignedSlot. If it never
+          // comes, the room doesn't exist / host is offline.
+          if (helloAckTimer) clearTimeout(helloAckTimer);
+          helloAckTimer = setTimeout(() => {
+            helloAckTimer = null;
+            if (netMode === 'client' && myPlayerIdx < 0) {
+              alert('Room tidak ditemukan atau host tidak aktif.\n\n• Pastikan kode benar (6 huruf)\n• Pastikan host masih membuka room\n• Coba lagi sebentar');
+              leaveRoom();
+            }
+          }, 10000);
         }
-      }, 20000);
-      peer.on('open', () => {
-        const conn = peer.connect(ROOM_ID_PREFIX + code, { reliable: true });
-        hostConn = conn;
-        conn.on('open', () => {
-          connected = true;
-          clearTimeout(joinTimer);
-          conn.send({ type: 'hello', name: myDisplayName });
-          showOverlayStage('lobbySetup');
-          setMessage(`🔑 Tersambung ke room <b>${code}</b>. Menunggu host...`);
-        });
-        conn.on('data', (msg) => onClientMessage(msg));
-        conn.on('close', () => {
-          clearTimeout(joinTimer);
-          if (connected) {
-            alert('Koneksi ke host terputus. Room mungkin sudah ditutup.');
-            leaveRoom();
-          }
-        });
-        conn.on('error', (err) => {
-          clearTimeout(joinTimer);
-          const msg = (err && err.message) || String(err);
-          if (/negotiat/i.test(msg)) {
-            alert('Koneksi WebRTC gagal (negotiation failed).\n\nIni biasanya karena jaringan ketat (data seluler/WiFi kantor). Coba pakai WiFi rumah, atau setup TURN server sendiri (lihat README).');
-          } else {
-            alert('Koneksi gagal: ' + msg);
-          }
-          leaveRoom();
-        });
-      });
-      peer.on('error', (err) => {
-        clearTimeout(joinTimer);
-        const m = (err && err.type === 'peer-unavailable')
-          ? 'Room tidak ditemukan. Cek kembali kodenya, atau host belum membuat room.'
-          : 'Koneksi peer bermasalah: ' + (err && err.message || err);
-        alert(m);
+      },
+      onMessage: (topic, payloadStr) => {
+        let msg;
+        try { msg = JSON.parse(payloadStr); } catch (e) { return; }
+        if (!msg || typeof msg !== 'object') return;
+        // Only handle broadcasts ('all') or messages addressed to this client.
+        if (msg.to !== 'all' && msg.to !== myClientId) return;
+        if (msg.type === 'assignedSlot') {
+          if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+        }
+        onClientMessage(msg);
+      },
+      onFail: () => {
+        if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+        alert('Gagal terhubung ke server. Periksa koneksi internet lalu coba lagi.');
         leaveRoom();
-      });
-    } catch (e) {
-      alert('Gagal gabung room: ' + e.message);
-      leaveRoom();
-    }
+      }
+    });
   }
 
   // ---- Host: handle incoming message from a client ----
   function onHostMessage(conn, msg) {
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'hello') {
-      // Assign client to next empty slot (1..3)
+      // (A) Reclaim: this clientId already owns a slot → returning after a reconnect.
+      // Re-attach instead of grabbing a new slot (also handles QoS-1 duplicate hello).
+      let existing = -1;
+      for (let i = 0; i < 4; i++) {
+        if (lobbyPlayers[i] && lobbyPlayers[i].peerId === conn.clientId) { existing = i; break; }
+      }
+      if (existing >= 0) {
+        conn._slot = existing;
+        conn._lastReclaimAt = Date.now(); // guard against a stale will-'bye' arriving next
+        lobbyPlayers[existing].online = true;
+        if (gameStarted && players[existing]) {
+          players[existing].isCPU = false;
+          log('🔌', `${escapeHtml(lobbyPlayers[existing].name)} tersambung kembali.`);
+        }
+        conn.send({ type: 'assignedSlot', idx: existing, lobby: lobbyPlayers });
+        if (gameStarted && !gameOver) conn.send({ type: 'gameStart', state: snapshotState() });
+        broadcastLobby();
+        renderLobby();
+        return;
+      }
+      // (B) Already-seated conn (defensive idempotency) → just re-send its slot.
+      if (conn._slot !== undefined && conn._slot !== null) {
+        conn.send({ type: 'assignedSlot', idx: conn._slot, lobby: lobbyPlayers });
+        return;
+      }
+      // (C) Fresh client: assign next empty slot (1..3)
       let slot = -1;
       for (let i = 1; i < 4; i++) {
         if (!lobbyPlayers[i]) { slot = i; break; }
@@ -1914,6 +2057,11 @@
   // ---- Client: handle incoming message from host ----
   function onClientMessage(msg) {
     if (!msg || typeof msg !== 'object') return;
+    // Any real host message (not the drop notice) proves the host is alive →
+    // cancel a pending "host came back?" grace timer.
+    if (msg.type !== 'hostDropped' && hostGraceTimer) {
+      clearTimeout(hostGraceTimer); hostGraceTimer = null;
+    }
     switch (msg.type) {
       case 'reject':
         alert(msg.reason === 'full' ? 'Room sudah penuh.' : 'Ditolak: ' + msg.reason);
@@ -1945,6 +2093,13 @@
         break;
       case 'state':
         restoreState(msg.state);
+        // Self-heal: if we somehow missed 'gameStart', any state with a live game
+        // must still dismiss the lobby overlay so we aren't trapped behind it.
+        if (gameStarted && !gameOver) {
+          startOverlay.classList.remove('show');
+          endOverlay.classList.remove('show');
+        }
+        renderTokens();
         if (msg.message) setMessage(msg.message);
         if (msg.logEntry) log(msg.logEntry.icon || '•', msg.logEntry.html || '');
         if (msg.dieRolled) {
@@ -1962,7 +2117,21 @@
         endOverlay.classList.add('show');
         renderEndOverlay();
         break;
+      case 'hostDropped':
+        // Host's connection dropped (maybe a transient blip). Don't hard-close —
+        // wait out a grace period; if the host reconnects it re-announces and the
+        // grace timer above is cancelled.
+        setMessage('⚠️ Host terputus — menunggu tersambung kembali...');
+        if (!hostGraceTimer) {
+          hostGraceTimer = setTimeout(() => {
+            hostGraceTimer = null;
+            alert('Host tidak kembali. Room ditutup.');
+            leaveRoom();
+          }, 30000);
+        }
+        break;
       case 'roomClosed':
+        // Explicit, intentional close by the host (left the room).
         alert('Host menutup room.');
         leaveRoom();
         break;
@@ -2012,23 +2181,40 @@
     }
   }
 
+  // Synchronous best-effort goodbye (used by leaveRoom AND the pagehide handler,
+  // where async work won't run before the page is torn down).
+  function sendByeNow() {
+    if (!mqttClient || !mqttClient.connected) return;
+    if (amHost() && roomCode) {
+      mqttPublish(topicToClients(roomCode), { to: 'all', type: 'roomClosed' });
+    } else if (amClient() && roomCode && myClientId) {
+      // 'byeLeave' = deliberate leave (always honored by host), distinct from the
+      // will's 'bye' (which the host ignores right after a reclaim).
+      mqttPublish(topicToHost(roomCode), { from: myClientId, type: 'byeLeave' });
+    }
+  }
+
   // ---- Leave room / cleanup ----
   function leaveRoom() {
     try {
-      if (amHost()) {
-        for (const c of clientConns) {
-          try { c.send({ type: 'roomClosed' }); } catch(e) {}
-          try { c.close(); } catch(e) {}
-        }
-      }
-      if (hostConn) try { hostConn.close(); } catch(e) {}
-      if (peer) try { peer.destroy(); } catch(e) {}
+      // Send a graceful goodbye BEFORE closing the socket (the MQTT "will" only
+      // fires on ungraceful drops, so we publish explicitly here).
+      sendByeNow();
+      const c = mqttClient;
+      if (c) setTimeout(() => { try { c.end(true); } catch(e) {} }, 200);
     } catch(e) {}
-    peer = null;
+    // Invalidate any in-flight connect attempt / stale async callbacks.
+    mqttGeneration++;
+    if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+    if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+    try { if (pendingMqttClient) pendingMqttClient.end(true); } catch(e) {}
+    pendingMqttClient = null;
+    mqttClient = null;
     hostConn = null;
     clientConns = [];
     netMode = 'local';
     myPlayerIdx = -1;
+    myClientId = '';
     roomCode = '';
     lobbyPlayers = [];
     gameStarted = false;
