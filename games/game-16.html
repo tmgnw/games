@@ -734,6 +734,7 @@
   let mqttGeneration = 0;
   let pendingMqttClient = null; // in-flight client currently being attempted
   let helloAckTimer = null;     // (client) waiting for assignedSlot after connecting
+  let helloRetryTimer = null;   // (client) periodic hello resend until assignedSlot
   let hostGraceTimer = null;    // (client) grace period after host drop before giving up
 
   // 6-char code (uppercase, no ambiguous chars).
@@ -744,12 +745,18 @@
   // This is just an outbound WSS connection on both devices — NO WebRTC, NO NAT
   // hole-punching, NO TURN server. It works across ANY networks (mobile data,
   // office WiFi, different ISPs) with zero account/setup.
-  // Public brokers tried in order; first that connects wins.
   const MQTT_BROKERS = [
     'wss://broker.emqx.io:8084/mqtt',
-    'wss://broker.hivemq.com:8884/mqtt',
-    'wss://test.mosquitto.org:8081/mqtt'
+    'wss://broker.hivemq.com:8884/mqtt'
   ];
+  // CRITICAL: host and joiner MUST land on the SAME broker or they can't see each
+  // other. We derive the broker deterministically from the room code (a stable
+  // hash) so both sides always pick the same one — never a fallback race.
+  function brokerForCode(code) {
+    let h = 0;
+    for (let i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) >>> 0;
+    return MQTT_BROKERS[h % MQTT_BROKERS.length];
+  }
   const MQTT_TOPIC_PREFIX = 'ludo16ID/'; // namespace on the shared public broker
   // Topic helpers: host listens on /h (client→host), publishes on /c (host→clients)
   function topicToHost(code)   { return MQTT_TOPIC_PREFIX + code + '/h'; }
@@ -1765,6 +1772,7 @@
   function abortMqtt() {
     mqttGeneration++;
     if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+    if (helloRetryTimer) { clearInterval(helloRetryTimer); helloRetryTimer = null; }
     if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
     try { if (pendingMqttClient) pendingMqttClient.end(true); } catch(e) {}
     pendingMqttClient = null;
@@ -1774,25 +1782,29 @@
 
   // ---- MQTT connection helper: try public brokers in order, fall back on failure ----
   function connectMqtt(cfg) {
-    // cfg: { clientId, subscribeTopic, will, onConnect(firstTime), onMessage, onFail }
+    // cfg: { clientId, subscribeTopic, will, brokers[], onConnect(firstTime), onMessage, onFail }
+    // brokers is a list of connection attempts (usually the SAME broker repeated a
+    // couple of times, so a flaky first connect just retries the same broker —
+    // never a different one, which would split host and joiner).
+    const brokers = cfg.brokers || MQTT_BROKERS;
     const myGen = mqttGeneration;   // this attempt belongs to the current session
     let idx = 0;
     let settled = false;            // true once we've committed to a working broker
     function dead() { return myGen !== mqttGeneration; }
     function attempt() {
       if (dead()) return;
-      if (idx >= MQTT_BROKERS.length) {
+      if (idx >= brokers.length) {
         if (!settled && !dead()) { settled = true; cfg.onFail && cfg.onFail(); }
         return;
       }
-      const url = MQTT_BROKERS[idx++];
+      const url = brokers[idx++];
       let client;
       try {
         client = mqtt.connect(url, {
           clientId: cfg.clientId,
           clean: true,
-          connectTimeout: 7000,
-          reconnectPeriod: 0,   // no auto-reconnect during initial broker selection
+          connectTimeout: 12000, // generous — a slow-but-valid WSS handshake must not be abandoned
+          reconnectPeriod: 0,    // no auto-reconnect during initial broker selection
           keepalive: 30,
           will: cfg.will || undefined
         });
@@ -1801,7 +1813,7 @@
 
       const timer = setTimeout(() => {
         if (mqttClient !== client) { try { client.end(true); } catch(e) {} attempt(); }
-      }, 8000);
+      }, 13000);
 
       client.on('connect', () => {
         // Belongs to a torn-down session, or a late connect from an abandoned broker → discard
@@ -1884,9 +1896,11 @@
     clientConns = [];
     lobbyPlayers = [{ name: myDisplayName, online: true, isCPU: false, peerId: null }, null, null, null];
     setStatus('Menyiapkan room...');
+    const broker = brokerForCode(code); // same broker the joiner will compute from the code
     connectMqtt({
       clientId: myClientId,
       subscribeTopic: topicToHost(code),
+      brokers: [broker, broker], // same broker, one retry on a flaky first connect
       // On an UNGRACEFUL host drop the broker publishes this will. We use a distinct
       // type ('hostDropped', not 'roomClosed') so clients treat it as a soft/maybe-
       // recoverable event (grace period) rather than a hard close.
@@ -1941,9 +1955,11 @@
       close() {}
     };
 
+    const broker = brokerForCode(code); // SAME broker the host derived from this code
     connectMqtt({
       clientId: myClientId,
       subscribeTopic: topicToClients(code),
+      brokers: [broker, broker], // same broker, one retry on a flaky first connect
       // If we drop unexpectedly, tell the host so it can free our slot / hand to CPU.
       will: {
         topic: topicToHost(code),
@@ -1951,21 +1967,26 @@
         qos: 1, retain: false
       },
       onConnect: (firstTime) => {
-        // Re-send hello on EVERY (re)connect. On a reconnect the host re-attaches us
-        // to our existing slot (see onHostMessage 'hello' reclaim logic).
+        // Send hello immediately, then RETRY every 2s until the host answers with
+        // assignedSlot. Retrying survives a lost hello (host mid-blip, dropped packet).
         hostConn.send({ type: 'hello', name: myDisplayName });
         if (firstTime) {
           setMessage(`🔑 Menyambung ke room <b>${code}</b>...`);
-          // We're on a broker; now wait for the host's assignedSlot. If it never
-          // comes, the room doesn't exist / host is offline.
+          if (helloRetryTimer) clearInterval(helloRetryTimer);
+          helloRetryTimer = setInterval(() => {
+            if (myPlayerIdx < 0 && netMode === 'client') hostConn.send({ type: 'hello', name: myDisplayName });
+            else { clearInterval(helloRetryTimer); helloRetryTimer = null; }
+          }, 2000);
+          // Give up if the host never answers (room doesn't exist / host offline).
           if (helloAckTimer) clearTimeout(helloAckTimer);
           helloAckTimer = setTimeout(() => {
             helloAckTimer = null;
+            if (helloRetryTimer) { clearInterval(helloRetryTimer); helloRetryTimer = null; }
             if (netMode === 'client' && myPlayerIdx < 0) {
               alert('Room tidak ditemukan atau host tidak aktif.\n\n• Pastikan kode benar (6 huruf)\n• Pastikan host masih membuka room\n• Coba lagi sebentar');
               leaveRoom();
             }
-          }, 10000);
+          }, 15000);
         }
       },
       onMessage: (topic, payloadStr) => {
@@ -1976,11 +1997,13 @@
         if (msg.to !== 'all' && msg.to !== myClientId) return;
         if (msg.type === 'assignedSlot') {
           if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+          if (helloRetryTimer) { clearInterval(helloRetryTimer); helloRetryTimer = null; }
         }
         onClientMessage(msg);
       },
       onFail: () => {
         if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+        if (helloRetryTimer) { clearInterval(helloRetryTimer); helloRetryTimer = null; }
         alert('Gagal terhubung ke server. Periksa koneksi internet lalu coba lagi.');
         leaveRoom();
       }
@@ -2206,6 +2229,7 @@
     // Invalidate any in-flight connect attempt / stale async callbacks.
     mqttGeneration++;
     if (helloAckTimer) { clearTimeout(helloAckTimer); helloAckTimer = null; }
+    if (helloRetryTimer) { clearInterval(helloRetryTimer); helloRetryTimer = null; }
     if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
     try { if (pendingMqttClient) pendingMqttClient.end(true); } catch(e) {}
     pendingMqttClient = null;
