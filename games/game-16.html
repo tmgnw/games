@@ -1739,7 +1739,7 @@
     document.getElementById('roomCodeDisplay').textContent = roomCode || '------';
     const startBtn = document.getElementById('startOnlineBtn');
     if (isHost) {
-      const onlineCount = lobbyPlayers.filter(p => p.online).length;
+      const onlineCount = lobbyPlayers.filter(p => p && p.online).length;
       startBtn.style.display = '';
       startBtn.disabled = onlineCount < 2;
       startBtn.textContent = onlineCount < 2 ? `Tunggu pemain (${onlineCount}/2 min)` : `Mulai (${onlineCount} pemain)`;
@@ -1947,6 +1947,9 @@
     netMode = 'client';
     roomCode = code;
     myClientId = randomClientId();
+    myPlayerIdx = -1;   // clear any stale slot from a prior host/session
+    clientConns = [];
+    lobbyPlayers = [];
     setStatus('Menyambung...');
 
     // Fake host-connection object so existing hostConn.send(...) calls keep working.
@@ -2093,11 +2096,15 @@
       case 'assignedSlot':
         myPlayerIdx = msg.idx;
         lobbyPlayers = msg.lobby || lobbyPlayers;
+        // Switch the client from the join form to the lobby view (this was missing,
+        // so the client looked stuck on "Gabung Room" even after joining).
+        if (!gameStarted) showOverlayStage('lobbySetup');
         renderLobby();
         setMessage(`Kamu pemain ke-${myPlayerIdx + 1} ${PLAYER_ICONS[myPlayerIdx]}`);
         break;
       case 'lobby':
         lobbyPlayers = msg.lobby;
+        if (!gameStarted) showOverlayStage('lobbySetup');
         renderLobby();
         break;
       case 'gameStart':
