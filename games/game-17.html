@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Hill Climb</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #10131a;
+    --panel: #1c2230;
+    --text: #f0f0f0;
+    --accent: #ffd54f;
+    --gas: #43a047;
+    --brake: #e53935;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 0.6rem;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  .back-link {
+    position: fixed; top: 0.5rem; left: 0.5rem;
+    color: #fff; text-decoration: none; font-size: 0.78rem;
+    opacity: 0.75; background: rgba(0,0,0,0.4);
+    padding: 4px 9px; border-radius: 6px; z-index: 50;
+  }
+  .top-bar {
+    width: 100%; max-width: 900px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 0.4rem;
+  }
+  .logo { font-weight: 800; font-size: 1.2rem; }
+  .top-controls { display: flex; gap: 0.4rem; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(255,255,255,0.1); border: none; cursor: pointer;
+    color: #fff; font-size: 0.95rem;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.18); }
+
+  .stage {
+    position: relative;
+    width: 100%; max-width: 900px;
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  canvas { display: block; width: 100%; height: auto; background: #7ec0ee; }
+
+  /* HUD */
+  .hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    pointer-events: none;
+    font-size: 0.82rem; font-weight: 700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+  .hud .pill {
+    background: rgba(0,0,0,0.4); border-radius: 999px;
+    padding: 0.25rem 0.65rem; display: flex; align-items: center; gap: 0.3rem;
+  }
+  .fuel-wrap {
+    flex: 0 0 120px; background: rgba(0,0,0,0.4);
+    border-radius: 999px; padding: 3px; height: 20px; position: relative;
+  }
+  .fuel-bar {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #ff5252, #ffd54f, #43a047);
+    transition: width 0.2s linear;
+  }
+  .fuel-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.62rem; }
+
+  /* Controls */
+  .controls {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between;
+    padding: 0.7rem; pointer-events: none;
+  }
+  .ctrl-btn {
+    width: 84px; height: 84px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.6);
+    font-size: 2rem; color: #fff; cursor: pointer;
+    pointer-events: auto; display: flex; align-items: center; justify-content: center;
+    -webkit-user-select: none; user-select: none;
+    opacity: 0.88; transition: transform 0.08s;
+  }
+  .ctrl-btn:active { transform: scale(0.92); opacity: 1; }
+  .ctrl-brake { background: rgba(229,57,53,0.75); }
+  .ctrl-gas { background: rgba(67,160,71,0.8); }
+  @media (max-width: 520px) {
+    .ctrl-btn { width: 68px; height: 68px; font-size: 1.6rem; }
+  }
+
+  /* Overlays */
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(10,13,20,0.92);
+    backdrop-filter: blur(4px);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 1rem; text-align: center; z-index: 20;
+    overflow-y: auto;
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 { font-size: clamp(1.3rem, 5vw, 1.9rem); font-weight: 800; margin-bottom: 0.2rem; }
+  .overlay .sub { font-size: 0.8rem; opacity: 0.8; margin-bottom: 0.7rem; }
+
+  .picker-label {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.15em;
+    text-transform: uppercase; opacity: 0.6;
+    align-self: flex-start; margin: 0.5rem 0 0.3rem;
+  }
+  .picker-row {
+    display: flex; gap: 0.5rem; overflow-x: auto;
+    width: 100%; padding-bottom: 0.4rem;
+    scrollbar-width: thin;
+  }
+  .pick-card {
+    flex: 0 0 auto; width: 108px;
+    background: var(--panel); border: 2px solid transparent;
+    border-radius: 10px; padding: 0.5rem; cursor: pointer;
+    transition: border-color 0.15s, transform 0.12s;
+  }
+  .pick-card:hover { transform: translateY(-2px); }
+  .pick-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,213,79,0.3); }
+  .pick-card canvas { width: 96px; height: 54px; background: transparent; border-radius: 6px; }
+  .pick-card .pname { font-size: 0.72rem; font-weight: 700; margin-top: 0.25rem; line-height: 1.15; }
+  .pick-card .pstat { font-size: 0.58rem; opacity: 0.65; line-height: 1.3; margin-top: 0.15rem; }
+  .pick-card .plock { font-size: 0.62rem; color: var(--accent); font-weight: 700; margin-top: 0.2rem; }
+
+  .big-btn {
+    background: var(--accent); color: #1a1a1a; border: none;
+    padding: 0.7rem 1.8rem; border-radius: 999px;
+    font-family: inherit; font-weight: 800; font-size: 0.95rem;
+    cursor: pointer; margin-top: 0.8rem;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+  }
+  .big-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+  .coins-badge {
+    position: absolute; top: 0.6rem; right: 0.8rem;
+    background: rgba(0,0,0,0.4); border-radius: 999px;
+    padding: 0.3rem 0.7rem; font-weight: 700; font-size: 0.8rem; color: var(--accent);
+  }
+  .hint { font-size: 0.68rem; opacity: 0.6; margin-top: 0.5rem; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <a href="../index.html" class="back-link">← Kembali</a>
+  <div class="top-bar">
+    <div class="logo">🏔️ Hill Climb</div>
+    <div class="top-controls">
+      <button class="icon-btn" id="soundBtn" title="Suara">🔊</button>
+      <button class="icon-btn" id="menuBtn" title="Menu / Ganti mobil">🚗</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="900" height="480"></canvas>
+
+    <div class="hud" id="hud">
+      <div class="pill">📏 <span id="distEl">0</span> m</div>
+      <div class="pill">🪙 <span id="coinEl">0</span></div>
+      <div class="fuel-wrap"><div class="fuel-bar" id="fuelBar" style="width:100%"></div><div class="fuel-label">⛽</div></div>
+    </div>
+
+    <div class="controls" id="controls">
+      <div class="ctrl-btn ctrl-brake" id="brakeBtn">◀</div>
+      <div class="ctrl-btn ctrl-gas" id="gasBtn">▶</div>
+    </div>
+
+    <!-- Start / garage overlay -->
+    <div class="overlay show" id="startOverlay">
+      <div class="coins-badge">🪙 <span id="coinsTotal">0</span></div>
+      <h2>🏔️ Hill Climb</h2>
+      <p class="sub">Pilih mobil & peta, lalu daki sejauh mungkin!</p>
+      <div class="picker-label">🚗 Mobil</div>
+      <div class="picker-row" id="carPicker"></div>
+      <div class="picker-label">🗺️ Peta</div>
+      <div class="picker-row" id="mapPicker"></div>
+      <button class="big-btn" id="startBtn">Mulai Balap</button>
+      <p class="hint">Gas (▶ / →) untuk maju, Rem (◀ / ←) untuk mundur & seimbangkan.<br>Jangan sampai kehabisan bensin atau terbalik!</p>
+    </div>
+
+    <!-- Game over overlay -->
+    <div class="overlay" id="overOverlay">
+      <h2 id="overTitle">💥 Crash!</h2>
+      <p class="sub" id="overSub"></p>
+      <button class="big-btn" id="retryBtn">Coba Lagi</button>
+      <button class="big-btn" id="garageBtn" style="background:rgba(255,255,255,0.12);color:#fff">Ganti Mobil / Peta</button>
+    </div>
+  </div>
+
+<script src="../assets/gamehub.js"></script>
+<script>
+(function() {
+  'use strict';
+  const STORAGE_KEY = 'hillclimb_v1';
+
+  // ============= CANVAS =============
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // ============= CARS (12) =============
+  // stats: accel, maxSpeed, grip (flip resistance), fuel, body geometry, colors, type
+  const CARS = [
+    { name:'Jip',        type:'car',     color:'#e53935', cabin:'#ffcdd2', bodyW:80, bodyH:26, wheelR:18, wheelBase:56, accel:0.16, maxSpeed:8.5,  grip:0.16, fuel:100 },
+    { name:'Motor',      type:'bike',    color:'#1e88e5', cabin:'#90caf9', bodyW:54, bodyH:14, wheelR:17, wheelBase:44, accel:0.22, maxSpeed:10,   grip:0.10, fuel:80  },
+    { name:'Truk',       type:'truck',   color:'#8d6e63', cabin:'#d7ccc8', bodyW:104,bodyH:34, wheelR:22, wheelBase:74, accel:0.12, maxSpeed:7,    grip:0.24, fuel:140 },
+    { name:'Mobil Sport',type:'car',     color:'#fdd835', cabin:'#fff9c4', bodyW:88, bodyH:20, wheelR:16, wheelBase:60, accel:0.20, maxSpeed:11,   grip:0.14, fuel:90  },
+    { name:'Monster',    type:'monster', color:'#43a047', cabin:'#c8e6c9', bodyW:90, bodyH:30, wheelR:30, wheelBase:70, accel:0.17, maxSpeed:8,    grip:0.22, fuel:120 },
+    { name:'Tank',       type:'truck',   color:'#607d8b', cabin:'#cfd8dc', bodyW:110,bodyH:36, wheelR:20, wheelBase:80, accel:0.11, maxSpeed:6,    grip:0.30, fuel:160 },
+    { name:'Bus',        type:'truck',   color:'#fb8c00', cabin:'#ffe0b2', bodyW:120,bodyH:38, wheelR:20, wheelBase:88, accel:0.10, maxSpeed:7,    grip:0.26, fuel:150 },
+    { name:'F1',         type:'car',     color:'#d81b60', cabin:'#f8bbd0', bodyW:96, bodyH:16, wheelR:15, wheelBase:70, accel:0.26, maxSpeed:13,   grip:0.11, fuel:70  },
+    { name:'Mobil Salju',type:'car',     color:'#00acc1', cabin:'#b2ebf2', bodyW:86, bodyH:28, wheelR:19, wheelBase:60, accel:0.15, maxSpeed:8,    grip:0.20, fuel:110 },
+    { name:'Buggy',      type:'car',     color:'#7cb342', cabin:'#dcedc8', bodyW:78, bodyH:22, wheelR:21, wheelBase:58, accel:0.19, maxSpeed:9.5,  grip:0.15, fuel:95  },
+    { name:'Mobil Bulan',type:'monster', color:'#9575cd', cabin:'#d1c4e9', bodyW:94, bodyH:28, wheelR:26, wheelBase:72, accel:0.16, maxSpeed:8,    grip:0.20, fuel:120 },
+    { name:'Roket',      type:'car',     color:'#ff7043', cabin:'#ffccbc', bodyW:92, bodyH:22, wheelR:16, wheelBase:64, accel:0.30, maxSpeed:15,   grip:0.09, fuel:80  }
+  ];
+
+  // ============= MAPS (12) =============
+  // gravity multiplier, terrain amplitude/frequency, colors
+  // Frequencies kept gentle (amp × freq = slope) so hills are rollable, not spiky.
+  const MAPS = [
+    { name:'Pedesaan',   grav:1.0,  amp1:46, f1:0.006, amp2:16, f2:0.014, amp3:5,  f3:0.030, baseY:300, sky1:'#7ec0ee', sky2:'#c9e8ff', ground:'#6d4c41', grass:'#7cb342' },
+    { name:'Gurun',      grav:1.0,  amp1:38, f1:0.005, amp2:14, f2:0.013, amp3:4,  f3:0.030, baseY:300, sky1:'#ffca7a', sky2:'#ffe6b3', ground:'#c9a15a', grass:'#e8c67a' },
+    { name:'Bulan',      grav:0.28, amp1:60, f1:0.006, amp2:20, f2:0.014, amp3:6,  f3:0.030, baseY:300, sky1:'#0a0a1a', sky2:'#26264a', ground:'#8a8a9a', grass:'#b0b0c0' },
+    { name:'Kutub',      grav:1.0,  amp1:48, f1:0.006, amp2:16, f2:0.014, amp3:5,  f3:0.030, baseY:300, sky1:'#b3e5fc', sky2:'#e1f5fe', ground:'#90a4ae', grass:'#eceff1' },
+    { name:'Pegunungan', grav:1.05, amp1:90, f1:0.006, amp2:34, f2:0.013, amp3:10, f3:0.030, baseY:310, sky1:'#5c6bc0', sky2:'#9fa8da', ground:'#5d4037', grass:'#66bb6a' },
+    { name:'Jalan Raya', grav:1.0,  amp1:16, f1:0.004, amp2:8,  f2:0.010, amp3:3,  f3:0.025, baseY:300, sky1:'#78909c', sky2:'#b0bec5', ground:'#37474f', grass:'#546e7a' },
+    { name:'Vulkanik',   grav:1.05, amp1:64, f1:0.006, amp2:26, f2:0.013, amp3:8,  f3:0.030, baseY:310, sky1:'#4e342e', sky2:'#8d3b2e', ground:'#3e2723', grass:'#bf360c' },
+    { name:'Pantai',     grav:1.0,  amp1:28, f1:0.005, amp2:12, f2:0.012, amp3:4,  f3:0.030, baseY:300, sky1:'#4fc3f7', sky2:'#b3e5fc', ground:'#c2b280', grass:'#ffe082' },
+    { name:'Mars',       grav:0.40, amp1:56, f1:0.006, amp2:20, f2:0.014, amp3:6,  f3:0.030, baseY:300, sky1:'#a0522d', sky2:'#d98b5f', ground:'#7a2e12', grass:'#c1440e' },
+    { name:'Hutan',      grav:1.0,  amp1:48, f1:0.006, amp2:18, f2:0.014, amp3:5,  f3:0.030, baseY:300, sky1:'#66bb6a', sky2:'#a5d6a7', ground:'#33691e', grass:'#2e7d32' },
+    { name:'Malam Neon', grav:1.0,  amp1:46, f1:0.006, amp2:18, f2:0.014, amp3:6,  f3:0.030, baseY:300, sky1:'#0d0221', sky2:'#3d0066', ground:'#1a0033', grass:'#e040fb' },
+    { name:'Es Ekstrem', grav:1.0,  amp1:80, f1:0.007, amp2:30, f2:0.016, amp3:10, f3:0.035, baseY:310, sky1:'#4dd0e1', sky2:'#b2ebf2', ground:'#78909c', grass:'#e0f7fa' }
+  ];
+
+  // ============= STATE =============
+  let currentCar = 0, currentMap = 0;
+  let soundOn = true;
+  let audioCtx = null;
+  let unlockedCars = { 0: true, 1: true }; // 0,1 free; others cost coins (via GameHub)
+  const CAR_COST = 250;
+
+  // Physics state
+  let cx, cy, vx, vy, angle, angVel, speed, grounded;
+  let fuel, distance, coins, maxDist;
+  let gas = false, brake = false;
+  let running = false, crashed = false, outOfFuel = false;
+  let rafId = null;
+  let wheelSpin = 0;
+  let cameraX = 0, cameraY = 0;
+  const collectedCoins = new Set();
+  const collectedFuel = new Set();
+
+  // ============= PERSISTENCE =============
+  function loadState() {
+    try {
+      const d = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (d) {
+        if (typeof d.currentCar === 'number') currentCar = Math.min(CARS.length-1, Math.max(0, d.currentCar));
+        if (typeof d.currentMap === 'number') currentMap = Math.min(MAPS.length-1, Math.max(0, d.currentMap));
+        soundOn = d.soundOn !== false;
+        if (d.unlockedCars && typeof d.unlockedCars === 'object') unlockedCars = d.unlockedCars;
+        if (typeof d.maxDist === 'number') maxDist = d.maxDist;
+      }
+    } catch(e) {}
+    unlockedCars[0] = true; unlockedCars[1] = true;
+    maxDist = maxDist || 0;
+  }
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ currentCar, currentMap, soundOn, unlockedCars, maxDist }));
+    } catch(e) {}
+  }
+
+  // ============= SOUND =============
+  function ensureAudio() {
+    if (!soundOn) return false;
+    if (!audioCtx) { try { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){ return false; } }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    return true;
+  }
+  let engineOsc = null, engineGain = null;
+  function startEngine() {
+    if (!ensureAudio() || engineOsc) return;
+    engineOsc = audioCtx.createOscillator();
+    engineGain = audioCtx.createGain();
+    engineOsc.type = 'sawtooth';
+    engineOsc.frequency.value = 60;
+    engineGain.gain.value = 0.0;
+    engineOsc.connect(engineGain); engineGain.connect(audioCtx.destination);
+    engineOsc.start();
+  }
+  function updateEngine() {
+    if (!engineOsc || !audioCtx) return;
+    const target = gas && !crashed && !outOfFuel ? 60 + Math.min(180, Math.abs(speed) * 22) : 45;
+    engineOsc.frequency.setTargetAtTime(target, audioCtx.currentTime, 0.1);
+    engineGain.gain.setTargetAtTime((gas && running) ? 0.05 : 0.015, audioCtx.currentTime, 0.1);
+  }
+  function stopEngine() {
+    if (engineOsc) { try { engineOsc.stop(); } catch(e){} engineOsc = null; engineGain = null; }
+  }
+  function playSound(type) {
+    if (!ensureAudio()) return;
+    const t = audioCtx.currentTime;
+    if (type === 'coin') {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(880, t); o.frequency.linearRampToValueAtTime(1320, t+0.08);
+      g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.01, t+0.15);
+      o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+0.16);
+    } else if (type === 'fuel') {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(440, t); o.frequency.linearRampToValueAtTime(660, t+0.15);
+      g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.01, t+0.25);
+      o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+0.26);
+    } else if (type === 'crash') {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(50, t+0.5);
+      g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.01, t+0.5);
+      o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+0.52);
+    }
+  }
+
+  // ============= TERRAIN =============
+  function terrainY(x) {
+    const m = MAPS[currentMap];
+    return m.baseY
+      + m.amp1 * Math.sin(x * m.f1 + m.seed)
+      + m.amp2 * Math.sin(x * m.f2 + m.seed * 1.3)
+      + m.amp3 * Math.sin(x * m.f3 + m.seed * 2.1);
+  }
+  function terrainSlope(x) {
+    return (terrainY(x + 3) - terrainY(x - 3)) / 6; // dy/dx
+  }
+
+  // ============= COLLECTIBLES =============
+  const COIN_SPACING = 150;
+  const FUEL_SPACING = 1400;
+  function coinPos(i) { const x = 400 + i * COIN_SPACING; return { x, y: terrainY(x) - 42 }; }
+  function fuelPos(i) { const x = 900 + i * FUEL_SPACING; return { x, y: terrainY(x) - 40 }; }
+
+  // ============= GAME LIFECYCLE =============
+  function resetRun() {
+    // seed the map so terrain differs per map (deterministic per session)
+    const m = MAPS[currentMap];
+    if (m.seed === undefined) m.seed = (currentMap * 12.9898) % 6.283;
+    cx = 200; cy = terrainY(cx) - 40;
+    vx = 0; vy = 0; angle = 0; angVel = 0; speed = 0; grounded = true;
+    fuel = CARS[currentCar].fuel;
+    distance = 0; coins = 0;
+    gas = false; brake = false;
+    running = true; crashed = false; outOfFuel = false;
+    wheelSpin = 0;
+    cameraX = 0; cameraY = 0;
+    collectedCoins.clear(); collectedFuel.clear();
+    startOverlay.classList.remove('show');
+    overOverlay.classList.remove('show');
+    updateHUD();
+    startEngine();
+    if (window.GameHub) window.GameHub.notify('game_start', { gameId: 17 });
+  }
+
+  // ============= PHYSICS =============
+  const DT = 1;               // fixed step (per frame @ ~60fps)
+  function step() {
+    const car = CARS[currentCar];
+    const map = MAPS[currentMap];
+    const gravity = 0.42 * map.grav;
+
+    // --- fuel ---
+    if (gas && !outOfFuel) {
+      fuel -= 0.06;
+      if (fuel <= 0) { fuel = 0; outOfFuel = true; }
+    } else {
+      fuel -= 0.004; // idle drain (very slow)
+      if (fuel < 0) { fuel = 0; outOfFuel = true; }
+    }
+
+    // --- vertical gravity always ---
+    vy += gravity * DT;
+    cy += vy * DT;
+
+    const restY = terrainY(cx) - (car.bodyH / 2 + car.wheelR);
+    if (cy >= restY) {
+      // grounded
+      cy = restY;
+      if (vy > 0) vy = 0;
+      grounded = true;
+    } else {
+      grounded = false;
+    }
+
+    const slope = terrainSlope(cx);
+    const slopeAngle = Math.atan(slope);
+
+    if (grounded) {
+      // engine accel
+      const canDrive = !outOfFuel;
+      if (gas && canDrive)  speed += car.accel * DT;
+      if (brake && canDrive) speed -= car.accel * 0.9 * DT;
+      // gravity along slope (downhill speeds up, uphill slows) — kept < engine
+      // accel on moderate slopes so cars can climb under power, steep ones need momentum
+      speed += Math.sin(slopeAngle) * gravity * 0.9 * DT;
+      // rolling friction
+      speed *= 0.992;
+      // clamp
+      const maxS = car.maxSpeed, maxRev = car.maxSpeed * 0.5;
+      if (speed > maxS) speed = maxS;
+      if (speed < -maxRev) speed = -maxRev;
+      // advance horizontally along the ground
+      cx += speed * Math.cos(slopeAngle) * DT;
+
+      // chassis angle: spring toward ground slope (grip), plus wheelie torque from gas/brake
+      angVel += (slopeAngle - angle) * car.grip;   // suspension/grip spring
+      angVel *= 0.72;                                // damping
+      if (gas && canDrive)   angVel -= 0.010 * DT;   // gas tips nose up (wheelie/backflip)
+      if (brake && canDrive) angVel += 0.010 * DT;   // brake tips nose down
+      angle += angVel * DT;
+    } else {
+      // airborne — free rotation with air control
+      cx += speed * DT;
+      if (gas)   angVel -= 0.006 * DT;  // rotate backward
+      if (brake) angVel += 0.006 * DT;  // rotate forward
+      angVel *= 0.995;
+      angle += angVel * DT;
+    }
+
+    // normalize angle to [-PI, PI]
+    while (angle > Math.PI) angle -= 2*Math.PI;
+    while (angle < -Math.PI) angle += 2*Math.PI;
+
+    // wheel spin visual
+    wheelSpin += speed * 0.06;
+
+    // --- crash: flipped too far (head hits ground) ---
+    if (Math.abs(angle) > 1.9) {
+      doCrash();
+      return;
+    }
+
+    // --- distance & collectibles ---
+    distance = Math.max(distance, Math.floor((cx - 200) / 22));
+    maxDist = Math.max(maxDist, distance);
+
+    // coins
+    const ci0 = Math.floor((cameraX - 200) / COIN_SPACING);
+    for (let i = Math.max(0, ci0); i < ci0 + 40; i++) {
+      if (collectedCoins.has(i)) continue;
+      const c = coinPos(i);
+      if (Math.hypot(c.x - cx, c.y - cy) < 34) {
+        collectedCoins.add(i); coins++; playSound('coin');
+      }
+    }
+    // fuel cans
+    const fi0 = Math.floor((cameraX - 900) / FUEL_SPACING);
+    for (let i = Math.max(0, fi0); i < fi0 + 4; i++) {
+      if (collectedFuel.has(i)) continue;
+      const f = fuelPos(i);
+      if (Math.hypot(f.x - cx, f.y - cy) < 40) {
+        collectedFuel.add(i); fuel = Math.min(car.fuel, fuel + car.fuel * 0.5); outOfFuel = false; playSound('fuel');
+      }
+    }
+
+    // --- out of fuel & stopped => end run ---
+    if (outOfFuel && grounded && Math.abs(speed) < 0.15) {
+      doGameOver('⛽ Kehabisan Bensin!');
+      return;
+    }
+  }
+
+  function doCrash() {
+    if (crashed) return;
+    crashed = true;
+    playSound('crash');
+    doGameOver('💥 Terbalik!');
+  }
+
+  function doGameOver(title) {
+    running = false;
+    stopEngine();
+    saveState();
+    // coins reward via GameHub (in-run coins + small distance bonus)
+    const earned = coins + Math.floor(distance / 20);
+    if (window.GameHub && earned > 0) {
+      window.GameHub.coins.add(earned);
+      window.GameHub.notify('g17_run', { distance, coins, car: currentCar, map: currentMap });
+    }
+    overTitle.textContent = title;
+    overSub.innerHTML = `Jarak: <b>${distance} m</b> · Koin: <b>${coins}</b><br>` +
+      `Rekor jarak: <b>${maxDist} m</b>` + (earned > 0 ? `<br><span style="color:var(--accent)">+${earned} 🪙 ke dompet</span>` : '');
+    setTimeout(() => overOverlay.classList.add('show'), 500);
+  }
+
+  // ============= RENDER =============
+  function draw() {
+    const map = MAPS[currentMap];
+    // camera follows car
+    cameraX += ((cx - W * 0.32) - cameraX) * 0.12;
+    cameraY += ((cy - H * 0.55) - cameraY) * 0.08;
+
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, map.sky1); sky.addColorStop(1, map.sky2);
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+    // parallax distant hills
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = map.grass;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let sx = 0; sx <= W; sx += 20) {
+      const wx = (cameraX * 0.4) + sx;
+      const hy = map.baseY - 60 + 40 * Math.sin(wx * 0.004 + map.seed) - cameraY * 0.4;
+      ctx.lineTo(sx, hy);
+    }
+    ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // terrain
+    ctx.fillStyle = map.ground;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    let firstY = 0;
+    for (let sx = 0; sx <= W; sx += 6) {
+      const wx = cameraX + sx;
+      const ty = terrainY(wx) - cameraY;
+      if (sx === 0) firstY = ty;
+      ctx.lineTo(sx, ty);
+    }
+    ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+    // grass top layer
+    ctx.strokeStyle = map.grass; ctx.lineWidth = 8; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let sx = 0; sx <= W; sx += 6) {
+      const wx = cameraX + sx;
+      const ty = terrainY(wx) - cameraY;
+      if (sx === 0) ctx.moveTo(sx, ty); else ctx.lineTo(sx, ty);
+    }
+    ctx.stroke();
+
+    // collectibles
+    drawCollectibles();
+
+    // car
+    drawCar();
+  }
+
+  function drawCollectibles() {
+    // coins
+    const ci0 = Math.floor((cameraX - 200) / COIN_SPACING);
+    for (let i = Math.max(0, ci0); i < ci0 + 60; i++) {
+      if (collectedCoins.has(i)) continue;
+      const c = coinPos(i);
+      const sx = c.x - cameraX, sy = c.y - cameraY;
+      if (sx < -20 || sx > W + 20) continue;
+      ctx.beginPath(); ctx.arc(sx, sy, 9, 0, Math.PI*2);
+      ctx.fillStyle = '#ffd54f'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#f9a825'; ctx.stroke();
+      ctx.fillStyle = '#f9a825'; ctx.font = 'bold 11px Poppins,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('$', sx, sy+1);
+    }
+    // fuel cans
+    const fi0 = Math.floor((cameraX - 900) / FUEL_SPACING);
+    for (let i = Math.max(0, fi0); i < fi0 + 6; i++) {
+      if (collectedFuel.has(i)) continue;
+      const f = fuelPos(i);
+      const sx = f.x - cameraX, sy = f.y - cameraY;
+      if (sx < -30 || sx > W + 30) continue;
+      ctx.fillStyle = '#e53935';
+      ctx.fillRect(sx - 9, sy - 12, 18, 24);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Poppins,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛽', sx, sy);
+    }
+  }
+
+  function drawCar() {
+    const car = CARS[currentCar];
+    const sx = cx - cameraX, sy = cy - cameraY;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(angle);
+
+    const bw = car.bodyW, bh = car.bodyH, wr = car.wheelR, wb = car.wheelBase;
+    const wheelYOff = bh/2;
+
+    // wheels (drawn first, behind body)
+    for (const wx of [-wb/2, wb/2]) {
+      ctx.save();
+      ctx.translate(wx, wheelYOff);
+      ctx.beginPath(); ctx.arc(0, 0, wr, 0, Math.PI*2);
+      ctx.fillStyle = '#1a1a1a'; ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, wr*0.5, 0, Math.PI*2);
+      ctx.fillStyle = '#9e9e9e'; ctx.fill();
+      // spokes
+      ctx.rotate(wheelSpin);
+      ctx.strokeStyle = '#616161'; ctx.lineWidth = 2;
+      for (let k=0;k<4;k++){ ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(k*Math.PI/2)*wr*0.5, Math.sin(k*Math.PI/2)*wr*0.5); ctx.stroke(); }
+      ctx.restore();
+    }
+
+    // body
+    ctx.fillStyle = car.color;
+    roundRect(-bw/2, -bh/2, bw, bh, 6); ctx.fill();
+    // cabin
+    if (car.type !== 'bike') {
+      ctx.fillStyle = car.cabin;
+      const cw = bw*0.42, ch = bh*0.9;
+      roundRect(-cw/2 - bw*0.05, -bh/2 - ch*0.7, cw, ch, 4); ctx.fill();
+    }
+    // driver head
+    ctx.fillStyle = '#ffcc80';
+    ctx.beginPath(); ctx.arc(-bw*0.05, -bh/2 - bh*0.55, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#c62828';
+    ctx.beginPath(); ctx.arc(-bw*0.05, -bh/2 - bh*0.55 - 4, 6, Math.PI, 0); ctx.fill(); // helmet
+
+    ctx.restore();
+  }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function updateHUD() {
+    distEl.textContent = distance;
+    coinEl.textContent = coins;
+    const car = CARS[currentCar];
+    fuelBar.style.width = Math.max(0, (fuel / car.fuel) * 100) + '%';
+  }
+
+  // ============= LOOP (fixed timestep — same speed on 60Hz/120Hz/uncapped) =============
+  const FIXED_MS = 1000 / 60;   // physics tick = 60 Hz
+  let lastT = 0, acc = 0;
+  function loop() {
+    const now = performance.now();   // reliable clock (don't depend on RAF's timestamp arg)
+    if (!lastT) lastT = now;
+    let frame = now - lastT; lastT = now;
+    if (frame > 250) frame = 250;   // clamp big gaps (tab switch) to avoid spiral
+    if (running) {
+      acc += frame;
+      let steps = 0;
+      while (acc >= FIXED_MS && steps < 5) { step(); acc -= FIXED_MS; steps++; if (!running) break; }
+      if (running) updateEngine();
+    } else {
+      acc = 0;
+    }
+    draw();
+    if (running) updateHUD();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  // ============= DOM =============
+  const startOverlay = document.getElementById('startOverlay');
+  const overOverlay = document.getElementById('overOverlay');
+  const overTitle = document.getElementById('overTitle');
+  const overSub = document.getElementById('overSub');
+  const distEl = document.getElementById('distEl');
+  const coinEl = document.getElementById('coinEl');
+  const fuelBar = document.getElementById('fuelBar');
+  const gasBtn = document.getElementById('gasBtn');
+  const brakeBtn = document.getElementById('brakeBtn');
+
+  // ============= PICKERS =============
+  function drawMiniCar(cnv, car) {
+    const c = cnv.getContext('2d');
+    const w = cnv.width, h = cnv.height;
+    c.clearRect(0,0,w,h);
+    c.save(); c.translate(w/2, h*0.62);
+    const s = 0.62;
+    const bw = car.bodyW*s, bh = car.bodyH*s, wr = car.wheelR*s, wb = car.wheelBase*s;
+    for (const wx of [-wb/2, wb/2]) {
+      c.beginPath(); c.arc(wx, bh/2, wr, 0, Math.PI*2); c.fillStyle='#1a1a1a'; c.fill();
+      c.beginPath(); c.arc(wx, bh/2, wr*0.5, 0, Math.PI*2); c.fillStyle='#9e9e9e'; c.fill();
+    }
+    c.fillStyle = car.color;
+    rr(c,-bw/2,-bh/2,bw,bh,4); c.fill();
+    if (car.type !== 'bike') { c.fillStyle = car.cabin; const cw=bw*0.42,ch=bh*0.9; rr(c,-cw/2-bw*0.05,-bh/2-ch*0.7,cw,ch,3); c.fill(); }
+    c.restore();
+  }
+  function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+
+  function renderCarPicker() {
+    const wrap = document.getElementById('carPicker');
+    wrap.innerHTML = '';
+    CARS.forEach((car, i) => {
+      const unlocked = !!unlockedCars[i];
+      const card = document.createElement('div');
+      card.className = 'pick-card' + (i === currentCar ? ' selected' : '');
+      const cnv = document.createElement('canvas');
+      cnv.width = 96; cnv.height = 54;
+      card.appendChild(cnv);
+      const nm = document.createElement('div'); nm.className = 'pname'; nm.textContent = car.name; card.appendChild(nm);
+      const st = document.createElement('div'); st.className = 'pstat';
+      st.innerHTML = `⚡${car.maxSpeed} 🛞${car.grip < 0.14 ? 'lincah' : car.grip > 0.22 ? 'stabil' : 'sedang'}`;
+      card.appendChild(st);
+      if (!unlocked) {
+        const lk = document.createElement('div'); lk.className = 'plock'; lk.textContent = `🔒 ${CAR_COST} 🪙`;
+        card.appendChild(lk);
+      }
+      card.addEventListener('click', () => {
+        if (!unlocked) {
+          if (window.GameHub && window.GameHub.coins.get() >= CAR_COST) {
+            if (confirm(`Beli ${car.name} seharga ${CAR_COST} koin?`)) {
+              window.GameHub.coins.spend(CAR_COST);
+              unlockedCars[i] = true; saveState();
+              renderCarPicker(); updateCoinsDisplay();
+            }
+          } else {
+            alert(`Koin belum cukup. Butuh ${CAR_COST} 🪙 (main dulu untuk kumpulkan koin).`);
+          }
+          return;
+        }
+        currentCar = i; saveState(); renderCarPicker();
+      });
+      wrap.appendChild(card);
+      drawMiniCar(cnv, car);
+    });
+  }
+
+  function renderMapPicker() {
+    const wrap = document.getElementById('mapPicker');
+    wrap.innerHTML = '';
+    MAPS.forEach((map, i) => {
+      const card = document.createElement('div');
+      card.className = 'pick-card' + (i === currentMap ? ' selected' : '');
+      const cnv = document.createElement('canvas');
+      cnv.width = 96; cnv.height = 54;
+      const c = cnv.getContext('2d');
+      const sky = c.createLinearGradient(0,0,0,54); sky.addColorStop(0,map.sky1); sky.addColorStop(1,map.sky2);
+      c.fillStyle = sky; c.fillRect(0,0,96,54);
+      c.fillStyle = map.ground; c.beginPath(); c.moveTo(0,54);
+      for (let sx=0;sx<=96;sx+=6){ const ty = 34 + (map.amp1*0.28)*Math.sin(sx*0.08 + i); c.lineTo(sx, ty); }
+      c.lineTo(96,54); c.closePath(); c.fill();
+      c.strokeStyle = map.grass; c.lineWidth = 3; c.beginPath();
+      for (let sx=0;sx<=96;sx+=6){ const ty = 34 + (map.amp1*0.28)*Math.sin(sx*0.08 + i); if(sx===0)c.moveTo(sx,ty); else c.lineTo(sx,ty); }
+      c.stroke();
+      card.appendChild(cnv);
+      const nm = document.createElement('div'); nm.className = 'pname'; nm.textContent = map.name; card.appendChild(nm);
+      const st = document.createElement('div'); st.className = 'pstat';
+      st.textContent = map.grav < 0.5 ? '🌙 gravitasi rendah' : map.amp1 > 55 ? '⛰️ ekstrem' : 'normal';
+      card.appendChild(st);
+      card.addEventListener('click', () => { currentMap = i; MAPS[i].seed = (i*12.9898)%6.283; saveState(); renderMapPicker(); });
+      wrap.appendChild(card);
+    });
+  }
+  function updateCoinsDisplay() {
+    const el = document.getElementById('coinsTotal');
+    if (el && window.GameHub) el.textContent = window.GameHub.coins.get().toLocaleString('id-ID');
+  }
+
+  // ============= INPUT =============
+  function press(which, on) { if (which === 'gas') gas = on; else brake = on; }
+  function bindBtn(el, which) {
+    el.addEventListener('touchstart', (e)=>{ e.preventDefault(); press(which,true); }, {passive:false});
+    el.addEventListener('touchend',   (e)=>{ e.preventDefault(); press(which,false); }, {passive:false});
+    el.addEventListener('touchcancel',()=>press(which,false));
+    el.addEventListener('mousedown', ()=>press(which,true));
+    el.addEventListener('mouseup',   ()=>press(which,false));
+    el.addEventListener('mouseleave',()=>press(which,false));
+  }
+  bindBtn(gasBtn, 'gas');
+  bindBtn(brakeBtn, 'brake');
+  document.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); gas = true; }
+    else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { e.preventDefault(); brake = true; }
+    else if ((e.key === ' ' || e.key === 'Enter')) {
+      if (startOverlay.classList.contains('show')) { e.preventDefault(); resetRun(); }
+      else if (overOverlay.classList.contains('show')) { e.preventDefault(); resetRun(); }
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') gas = false;
+    else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') brake = false;
+  });
+
+  // ============= BUTTONS =============
+  document.getElementById('startBtn').addEventListener('click', () => resetRun());
+  document.getElementById('retryBtn').addEventListener('click', () => resetRun());
+  document.getElementById('garageBtn').addEventListener('click', () => {
+    overOverlay.classList.remove('show');
+    startOverlay.classList.add('show');
+    renderCarPicker(); renderMapPicker(); updateCoinsDisplay();
+  });
+  document.getElementById('menuBtn').addEventListener('click', () => {
+    running = false; stopEngine();
+    overOverlay.classList.remove('show');
+    startOverlay.classList.add('show');
+    renderCarPicker(); renderMapPicker(); updateCoinsDisplay();
+  });
+  document.getElementById('soundBtn').addEventListener('click', () => {
+    soundOn = !soundOn;
+    document.getElementById('soundBtn').textContent = soundOn ? '🔊' : '🔇';
+    saveState();
+    if (!soundOn) stopEngine();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(()=>{});
+    else if (!document.hidden && audioCtx && audioCtx.state === 'suspended' && soundOn) audioCtx.resume().catch(()=>{});
+  });
+
+  // ============= INIT =============
+  loadState();
+  MAPS.forEach((m, i) => { m.seed = (i*12.9898) % 6.283; });
+  document.getElementById('soundBtn').textContent = soundOn ? '🔊' : '🔇';
+  // idle preview state so draw() works before first run
+  cx = 200; cy = terrainY(200) - 40; angle = 0; distance = 0; coins = 0; fuel = CARS[currentCar].fuel;
+  cameraX = 0; cameraY = 0;
+  renderCarPicker(); renderMapPicker(); updateCoinsDisplay();
+  requestAnimationFrame(loop);
+  if (window.GameHub) window.GameHub.notify('game_start', { gameId: 17 });
+})();
+</script>
+</body>
+</html>
